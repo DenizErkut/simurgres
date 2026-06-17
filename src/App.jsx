@@ -48,28 +48,28 @@ const NAV = [
   },
   {
     grup: 'Raporlar',
-    roller: [ROL.YONETICI],
+    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
     izin: 'rapor_gunluk',
     items: [
-      { id: 'rapor', label: 'Günlük Rapor', icon: 'ti-chart-bar', component: DashboardPage, roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
+      { id: 'rapor', label: 'Günlük Rapor', icon: 'ti-chart-bar', component: DashboardPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB', izin: 'rapor_gunluk' },
     ]
   },
   {
     grup: 'Menü',
-    roller: [ROL.YONETICI],
+    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
     izin: 'menu_duzenle',
     items: [
-      { id: 'menu',   label: 'Ürünler',    icon: 'ti-soup',       component: MenuPage,    roller: [ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE' },
-      { id: 'recete', label: 'Reçeteler',  icon: 'ti-git-branch', component: RecetePage,  roller: [ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'recete_goruntule' },
+      { id: 'menu',   label: 'Ürünler',    icon: 'ti-soup',       component: MenuPage,    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'menu_duzenle' },
+      { id: 'recete', label: 'Reçeteler',  icon: 'ti-git-branch', component: RecetePage,  roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'recete_goruntule' },
     ]
   },
   {
     grup: 'Stok',
-    roller: [ROL.YONETICI],
+    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
     izin: 'stok_goruntule',
     items: [
-      { id: 'stok',   label: 'Stok Durumu',  icon: 'ti-package',      component: StokPage,   roller: [ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'stok_goruntule' },
-      { id: 'fatura', label: 'Fatura Girişi', icon: 'ti-file-invoice', component: FaturaPage, roller: [ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'fatura_goruntule' },
+      { id: 'stok',   label: 'Stok Durumu',  icon: 'ti-package',      component: StokPage,   roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'stok_goruntule' },
+      { id: 'fatura', label: 'Fatura Girişi', icon: 'ti-file-invoice', component: FaturaPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'fatura_goruntule' },
     ]
   },
   {
@@ -116,11 +116,12 @@ function Sidebar({ aktif, setAktif, kullanici }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {NAV.map(grup => {
           if (!grup.roller.includes(kullanici.rol)) return null
-          if (grup.izin && !izinVar(grup.izin) && kullanici.rol !== ROL.YONETICI) return null
+          // Grup için izin kontrolü — yönetici hep görür, diğerleri izne göre
+          if (grup.izin && kullanici.rol !== ROL.YONETICI && !izinVar(grup.izin)) return null
 
           const gorunurItems = grup.items.filter(item =>
             item.roller.includes(kullanici.rol) &&
-            (!item.izin || izinVar(item.izin) || kullanici.rol === ROL.YONETICI)
+            (!item.izin || kullanici.rol === ROL.YONETICI || izinVar(item.izin))
           )
           if (gorunurItems.length === 0) return null
 

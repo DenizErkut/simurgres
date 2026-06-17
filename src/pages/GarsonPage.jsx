@@ -152,6 +152,9 @@ export default function GarsonPage() {
   const [sepet, setSepet] = useState([])
   const [loading, setLoading] = useState(true)
   const [gonderiyor, setGonderiyor] = useState(false)
+  const [masaIsim, setMasaIsim] = useState('')       // isimle masa açma
+  const [notModal, setNotModal] = useState(null)     // { urun, resolve }
+  const [sepetNotlar, setSepetNotlar] = useState({}) // id -> not
   const [modal, setModal] = useState(null)
   const { izinVar } = useIzin()
 
@@ -184,7 +187,7 @@ export default function GarsonPage() {
   }
 
   const masaSec = async (masa) => {
-    setSeciliMasa(masa); setSepet([])
+    setSeciliMasa(masa); setSepet([]); setMasaIsim(masa.musteri_isim || '')
     if (masa.durum === 'dolu') {
       const siparis = await siparislerApi.getByMasa(masa.id)
       setMevcutSiparis(siparis)
@@ -193,16 +196,22 @@ export default function GarsonPage() {
     }
   }
 
-  const urunEkle = (urun) => {
+  const urunEkle = (urun, not = null) => {
     setSepet(prev => {
-      const mevcut = prev.find(s => s.id === urun.id)
-      if (mevcut) return prev.map(s => s.id === urun.id ? { ...s, adet: s.adet + 1 } : s)
-      return [...prev, { id: urun.id, ad: urun.ad, fiyat: urun.fiyat, adet: 1, emoji: urun.emoji || '🍽️' }]
+      const mevcut = prev.find(s => s.id === urun.id && !not)
+      if (mevcut && !not) return prev.map(s => s.id === urun.id ? { ...s, adet: s.adet + 1 } : s)
+      const yeniId = `${urun.id}_${Date.now()}`
+      return [...prev, { _uid: not ? yeniId : urun.id, id: urun.id, ad: urun.ad, fiyat: urun.fiyat, adet: 1, emoji: urun.emoji || '🍽️', not: not || '' }]
     })
   }
 
-  const adetDegistir = (id, delta) => {
-    setSepet(prev => prev.map(s => s.id === id ? { ...s, adet: s.adet + delta } : s).filter(s => s.adet > 0))
+  const urunEkleNot = (urun) => {
+    // Not gerektirecek şekilde ekle — modal aç
+    setNotModal({ urun })
+  }
+
+  const adetDegistir = (uid, delta) => {
+    setSepet(prev => prev.map(s => (s._uid || s.id) === uid ? { ...s, adet: s.adet + delta } : s).filter(s => s.adet > 0))
   }
 
   const siparisiGonder = async () => {
@@ -212,9 +221,10 @@ export default function GarsonPage() {
       const { toplam, kdv_tutar, genel_toplam } = await siparislerApi.toplamHesapla(
         sepet.map(s => ({ urun_fiyat: s.fiyat, adet: s.adet }))
       )
+      const masaNo = masaIsim ? `${seciliMasa.no} · ${masaIsim}` : seciliMasa.no
       await siparislerApi.create(
-        { masa_id: seciliMasa.id, masa_no: seciliMasa.no, tur: aktifSalon?.ad?.includes('Paket') ? 'paket' : 'masa', toplam, kdv_tutar, genel_toplam },
-        sepet.map(s => ({ urun_id: s.id, urun_ad: s.ad, urun_fiyat: s.fiyat, adet: s.adet }))
+        { masa_id: seciliMasa.id, masa_no: masaNo, tur: aktifSalon?.ad?.includes('Paket') ? 'paket' : 'masa', toplam, kdv_tutar, genel_toplam },
+        sepet.map(s => ({ urun_id: s.id, urun_ad: s.ad, urun_fiyat: s.fiyat, adet: s.adet, notlar: s.not || null }))
       )
       toast.success(`${seciliMasa.no} siparişi mutfağa gönderildi!`)
       setSepet([]); setSeciliMasa(null); setMevcutSiparis(null)
@@ -312,7 +322,7 @@ export default function GarsonPage() {
               className={`masa-kart ${m.durum === 'dolu' ? 'dolu' : ''} ${seciliMasa?.id === m.id ? 'secili' : ''}`}
               onClick={() => masaSec(m)}>
               <div className="masa-no">{m.no}</div>
-              <div className="masa-alt">{m.durum === 'dolu' ? 'Dolu' : 'Boş'}</div>
+              <div className="masa-alt">{m.musteri_isim || (m.durum === 'dolu' ? 'Dolu' : 'Boş')}</div>
             </div>
           ))}
         </div>
@@ -335,6 +345,15 @@ export default function GarsonPage() {
             </span>
             <ChefHat size={16} color="var(--text2)" />
           </div>
+          {seciliMasa && !masaDolu && (
+            <input
+              value={masaIsim}
+              onChange={e => setMasaIsim(e.target.value)}
+              placeholder="Müşteri adı (opsiyonel)"
+              inputMode="text"
+              style={{ fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border-md)', width: '100%' }}
+            />
+          )}
 
           {!seciliMasa ? (
             <div className="empty-state"><p>← Sipariş için masa seçin</p></div>
@@ -381,6 +400,7 @@ export default function GarsonPage() {
                       return (
                         <div key={u.id}
                           onClick={() => urunEkle(u)}
+                          onContextMenu={e => { e.preventDefault(); urunEkleNot(u) }}
                           style={{ padding: '10px 10px', borderRadius: 'var(--radius)', border: `1.5px solid ${adet > 0 ? 'var(--accent)' : 'var(--border)'}`, background: adet > 0 ? 'var(--accent-light)' : 'var(--surface2)', cursor: 'pointer', transition: 'all .15s', position: 'relative', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
                           onMouseEnter={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--accent)' }}
                           onMouseLeave={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--border)' }}>
@@ -424,7 +444,10 @@ export default function GarsonPage() {
             <div style={{ maxHeight: 150, overflowY: 'auto' }}>
               {sepet.map(s => (
                 <div key={s.id} className="sepet-item">
-                  <span className="sepet-ad">{s.emoji} {s.ad}</span>
+                  <div className="sepet-ad">
+                    <div>{s.emoji} {s.ad}</div>
+                    {s.not && <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 2 }}>📝 {s.not}</div>}
+                  </div>
                   <div className="adet-ctrl">
                     <button className="adet-btn" onClick={() => adetDegistir(s.id, -1)}>−</button>
                     <span style={{ fontSize: 15, fontWeight: 600, minWidth: 28, textAlign: 'center' }}>{s.adet}</span>

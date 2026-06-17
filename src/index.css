@@ -59,16 +59,16 @@ label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); 
 .badge-red { background: var(--red-light); color: var(--red); }
 .badge-gray { background: var(--surface2); color: var(--text2); }
 .badge-accent { background: var(--accent-light); color: var(--accent-hover); }
-.masa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 8px; }
-.masa-kart { border-radius: var(--radius); border: 0.5px solid var(--border); background: var(--surface); padding: 12px 8px; text-align: center; cursor: pointer; transition: all .15s; user-select: none; }
+.masa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+.masa-kart { border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); padding: 16px 8px; text-align: center; cursor: pointer; transition: all .15s; user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; min-height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .masa-kart:hover { border-color: var(--border-md); box-shadow: var(--shadow); }
 .masa-kart.dolu { background: var(--amber-light); border-color: #e8c47a; }
 .masa-kart.dolu .masa-no { color: #412402; }
 .masa-kart.dolu .masa-alt { color: #633806; }
 .masa-kart.secili { background: var(--accent); border-color: var(--accent); }
 .masa-kart.secili .masa-no, .masa-kart.secili .masa-alt { color: #fff; }
-.masa-no { font-size: 15px; font-weight: 600; }
-.masa-alt { font-size: 11px; color: var(--text2); margin-top: 3px; }
+.masa-no { font-size: 17px; font-weight: 600; }
+.masa-alt { font-size: 12px; color: var(--text2); margin-top: 4px; }
 .kds-kart { background: var(--surface); border-radius: var(--radius-lg); border: 0.5px solid var(--border); overflow: hidden; display: flex; flex-direction: column; }
 .kds-header-yeni { background: #5DCAA5; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
 .kds-header-hazirlaniyor { background: #FAC775; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }

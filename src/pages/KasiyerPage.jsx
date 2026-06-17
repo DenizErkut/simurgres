@@ -16,8 +16,56 @@ const TUM_ODEME = [
   { label: 'Cari Hesap',  icon: FileText,    izin: 'cari_odeme'  },
 ]
 
+// ─── SAYISAL KLAVYE ──────────────────────────────────────────────────────────
+function SayisalKlavye({ deger, onChange, onKapat }) {
+  const tiklat = (val) => {
+    if (val === 'C') { onChange(''); return }
+    if (val === '⌫') { onChange(prev => prev.slice(0, -1)); return }
+    if (val === '.' && deger.includes('.')) return
+    onChange(prev => {
+      const yeni = (prev || '') + val
+      // Max 2 ondalık
+      if (yeni.includes('.') && yeni.split('.')[1]?.length > 2) return prev
+      return yeni
+    })
+  }
+  const tuslar = ['7','8','9','4','5','6','1','2','3','C','0','.','⌫']
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 500,
+      background: 'var(--surface)', borderTop: '1px solid var(--border)',
+      padding: '12px 16px 24px', boxShadow: '0 -4px 20px rgba(0,0,0,0.15)'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>
+          ₺{deger || '0.00'}
+        </div>
+        <button onClick={onKapat} style={{ background: 'var(--surface2)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+          Tamam
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, maxWidth: 340, margin: '0 auto' }}>
+        {tuslar.map(t => (
+          <button key={t} onClick={() => tiklat(t)}
+            style={{
+              padding: '16px', fontSize: t === '⌫' ? 20 : 22, fontWeight: 500,
+              borderRadius: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: t === 'C' ? 'var(--red-light)' : t === '⌫' ? 'var(--surface2)' : 'var(--surface2)',
+              color: t === 'C' ? 'var(--red)' : 'var(--text)',
+              touchAction: 'manipulation', userSelect: 'none',
+              gridColumn: t === '⌫' ? 'span 1' : 'span 1'
+            }}>
+            {t}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── BÖLÜNMÜŞ ÖDEME MODALİ ───────────────────────────────────────────────────
 function BolunmusOdemeModal({ genel, onOde, onKapat, izinliOdemeler }) {
+  const [aktifSatirId, setAktifSatirId] = useState(null)
   const [satirlar, setSatirlar] = useState([
     { id: 1, yontem: izinliOdemeler[0]?.label || 'Nakit', tutar: '' }
   ])
@@ -51,8 +99,9 @@ function BolunmusOdemeModal({ genel, onOde, onKapat, izinliOdemeler }) {
                 {izinliOdemeler.map(o => <option key={o.label}>{o.label}</option>)}
               </select>
               <input type="number" placeholder="0.00" value={s.tutar}
-                onChange={e => satirGuncelle(s.id, 'tutar', e.target.value)}
-                style={{ flex: 1 }} />
+                readOnly
+                onClick={() => setAktifSatirId(s.id)}
+                style={{ flex: 1, cursor: 'pointer', caretColor: 'transparent' }} />
               {i === satirlar.length - 1 && kalan > 0 && (
                 <button className="btn btn-ghost btn-sm" onClick={() => kalanDoldur(s.id)}
                   style={{ whiteSpace: 'nowrap', fontSize: 11 }}>
@@ -82,6 +131,16 @@ function BolunmusOdemeModal({ genel, onOde, onKapat, izinliOdemeler }) {
           <span style={{ fontWeight: 700 }}>{kalan !== 0 ? `₺${Math.abs(kalan).toFixed(2)}` : 'Tamam'}</span>
         </div>
 
+        {aktifSatirId && (
+          <SayisalKlavye
+            deger={satirlar.find(s => s.id === aktifSatirId)?.tutar || ''}
+            onChange={(val) => {
+              if (typeof val === 'function') setSatirlar(p => p.map(s => s.id === aktifSatirId ? { ...s, tutar: val(s.tutar) } : s))
+              else satirGuncelle(aktifSatirId, 'tutar', val)
+            }}
+            onKapat={() => setAktifSatirId(null)}
+          />
+        )}
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onKapat}>İptal</button>
           <button className="btn btn-primary" disabled={!gecerli}

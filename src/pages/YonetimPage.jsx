@@ -142,16 +142,26 @@ function MasaYonetimi() {
 
   // Toplu masa ekle
   const topluEkle = async () => {
+    if (!seciliSalon) return
     const adet = parseInt(prompt('Kaç masa eklensin?', '5'))
-    if (!adet || adet < 1 || !seciliSalon) return
-    const mevcutSayisi = masalar.length
+    if (!adet || adet < 1) return
+    const kapasite = parseInt(prompt('Kapasite?', '4')) || 4
+    
+    // Mevcut masaların numaralarından en büyüğünü bul, ardışık devam et
+    const prefix = seciliSalon.ad.charAt(0).toUpperCase()
+    const mevcutNolar = masalar
+      .map(m => parseInt(m.no.replace(/^\D+/, '')))
+      .filter(n => !isNaN(n))
+    const baslangic = mevcutNolar.length > 0 ? Math.max(...mevcutNolar) + 1 : 1
+    
     const eklenecekler = Array.from({ length: adet }, (_, i) => ({
       salon_id: seciliSalon.id,
-      no: `${seciliSalon.ad.charAt(0).toUpperCase()}${mevcutSayisi + i + 1}`,
-      kapasite: 4
+      no: `${prefix}${baslangic + i}`,
+      kapasite,
+      sira: masalar.length + i + 1
     }))
     await supabase.from('masalar').insert(eklenecekler)
-    toast.success(`${adet} masa eklendi`)
+    toast.success(`${adet} masa eklendi: ${prefix}${baslangic} – ${prefix}${baslangic + adet - 1}`)
     masaYukle()
   }
 
