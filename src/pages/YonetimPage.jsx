@@ -237,11 +237,50 @@ function KategoriYonetimi() {
   const [kategoriler, setKategoriler] = useState([])
   const [yeni, setYeni] = useState({ ad: '', emoji: '🍽️' })
   const [duzenle, setDuzenle] = useState(null)
+  const [yazicilar, setYazicilar] = useState([])
+  const [katYazici, setKatYazici] = useState({}) // kategori_id -> yazici_id
 
   const yukle = useCallback(async () => {
     const { data } = await supabase.from('kategoriler').select('*').order('sira')
     setKategoriler(data || [])
+    // Yazıcıları çek
+    try {
+      const res = await fetch('http://127.0.0.1:7779/api/yazicilar', { signal: AbortSignal.timeout(2000) })
+      setYazicilar(await res.json())
+    } catch { setYazicilar([]) }
+    // Mevcut kategori yazıcı kurallarını çek
+    const { data: kurallar } = await supabase
+      .from('yazici_yonlendirmeler')
+      .select('*')
+      .eq('kural_turu', 'kategori')
+      .eq('aktif', true)
+    if (kurallar) {
+      const map = {}
+      kurallar.forEach(k => { map[k.kategori_id] = k.yazici_id })
+      setKatYazici(map)
+    }
   }, [])
+
+  const kategoriYaziciDegistir = async (kategoriId, yaziciId) => {
+    // Eski kuralı sil
+    await supabase.from('yazici_yonlendirmeler')
+      .delete()
+      .eq('kural_turu', 'kategori')
+      .eq('kategori_id', kategoriId)
+    // Yeni kural ekle
+    if (yaziciId) {
+      await supabase.from('yazici_yonlendirmeler').insert({
+        yazici_id: yaziciId,
+        kural_turu: 'kategori',
+        kategori_id: kategoriId,
+        oncelik: 10,
+        aktif: true,
+        aciklama: 'Menü sayfasından atandı'
+      })
+    }
+    setKatYazici(prev => ({ ...prev, [kategoriId]: yaziciId }))
+    toast.success(yaziciId ? 'Yazıcı atandı' : 'Yazıcı kaldırıldı')
+  }
 
   useEffect(() => { yukle() }, [yukle])
 
@@ -297,6 +336,19 @@ function KategoriYonetimi() {
               <span style={{ flex: 1, fontWeight: 500 }}>{k.ad}</span>
             )}
             <span style={{ fontSize: 11, color: 'var(--text3)' }}>Sıra: {i + 1}</span>
+            {yazicilar.length > 0 && (
+              <select
+                value={katYazici[k.id] || ''}
+                onChange={e => kategoriYaziciDegistir(k.id, e.target.value)}
+                style={{ fontSize: 11, padding: '3px 6px', width: 140,
+                  color: katYazici[k.id] ? 'var(--green)' : 'var(--text3)',
+                  border: katYazici[k.id] ? '1px solid var(--green)' : '0.5px solid var(--border-md)',
+                  borderRadius: 'var(--radius)' }}
+                title="Bu kategorinin yazıcısı">
+                <option value="">🖨️ Yazıcı seç</option>
+                {yazicilar.map(y => <option key={y.id} value={y.id}>🖨️ {y.ad}</option>)}
+              </select>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={() => setDuzenle(k.id)}><Edit2 size={12} /></button>
             <button className="btn btn-ghost btn-sm" onClick={() => toggleAktif(k)}>
               {k.aktif ? <ToggleRight size={15} color="var(--green)" /> : <ToggleLeft size={15} color="var(--text3)" />}

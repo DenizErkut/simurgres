@@ -3,8 +3,8 @@ import { urunlerApi, kategorilerApi } from '../lib/supabase'
 import toast from 'react-hot-toast'
 import { Plus, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
 
-function UrunModal({ urun, kategoriler, onKaydet, onKapat }) {
-  const [form, setForm] = useState(urun || { ad: '', fiyat: '', emoji: '🍽️', kategori_id: kategoriler[0]?.id || '', aciklama: '', aktif: true })
+function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
+  const [form, setForm] = useState(urun || { ad: '', fiyat: '', emoji: '🍽️', kategori_id: kategoriler[0]?.id || '', aciklama: '', aktif: true, yazici_id: '' })
 
   const kaydet = async () => {
     if (!form.ad || !form.fiyat) { toast.error('Ad ve fiyat zorunlu'); return }
@@ -39,6 +39,18 @@ function UrunModal({ urun, kategoriler, onKaydet, onKapat }) {
           <label>Açıklama</label>
           <textarea rows={2} value={form.aciklama || ''} onChange={e => setForm(f => ({ ...f, aciklama: e.target.value }))} placeholder="Kısa açıklama..." />
         </div>
+        {yazicilar.length > 0 && (
+          <div className="form-row">
+            <label>Yazıcı Yönlendirme</label>
+            <select value={form.yazici_id || ''} onChange={e => setForm(f => ({ ...f, yazici_id: e.target.value }))}>
+              <option value="">Kategori kuralını kullan (varsayılan)</option>
+              {yazicilar.map(y => <option key={y.id} value={y.id}>{y.ad} — {y.ip}:{y.port}</option>)}
+            </select>
+            <span style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3, display: 'block' }}>
+              Bu ürün her zaman seçilen yazıcıya gider (kategori kuralını ezer)
+            </span>
+          </div>
+        )}
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onKapat}>İptal</button>
           <button className="btn btn-primary" onClick={kaydet}>Kaydet</button>
@@ -54,12 +66,18 @@ export default function MenuPage() {
   const [aktifKat, setAktifKat] = useState('tumu')
   const [modal, setModal] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [yazicilar, setYazicilar] = useState([])
 
   const yukle = useCallback(async () => {
     try {
       const [u, k] = await Promise.all([urunlerApi.getAll(), kategorilerApi.getAll()])
       setUrunler(u)
       setKategoriler(k)
+      // Bridge'den yazıcıları çek
+      try {
+        const res = await fetch('http://127.0.0.1:7779/api/yazicilar', { signal: AbortSignal.timeout(2000) })
+        setYazicilar(await res.json())
+      } catch { setYazicilar([]) }
     } catch (e) {
       toast.error('Menü yüklenemedi')
     } finally {
@@ -168,6 +186,7 @@ export default function MenuPage() {
         <UrunModal
           urun={modal.urun}
           kategoriler={kategoriler}
+          yazicilar={yazicilar}
           onKaydet={kaydet}
           onKapat={() => setModal(null)}
         />
