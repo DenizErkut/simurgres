@@ -515,7 +515,7 @@ export default function DashboardPage() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 15, fontWeight: 700, color: 'var(--accent)', flexShrink: 0
                       }}>
-                        {g.ad?.charAt(0)?.toUpperCase()}
+                        {g.ad === 'İsim Yok' ? '?' : g.ad?.charAt(0)?.toUpperCase()}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.ad}</div>

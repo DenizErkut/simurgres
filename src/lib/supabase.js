@@ -590,13 +590,13 @@ export const raporlarGelismisApi = {
   async garsonRaporu(baslangic, bitis) {
     // Sipariş bazlı ciro
     const { data: siparisler } = await supabase.from('siparisler')
-      .select('garson_id, garson_ad, genel_toplam, created_at, masa_no, tur')
+      .select('garson_id, garson_ad, garson, genel_toplam, created_at, masa_no, tur')
       .eq('durum', 'odendi')
       .gte('created_at', baslangic).lt('created_at', bitis)
 
     // Kalem bazlı satış (ürün + kategori detayı)
     const { data: kalemler } = await supabase.from('siparis_kalemleri')
-      .select('urun_ad, urun_fiyat, adet, urunler(kategori_id, kategoriler(ad,emoji)), siparisler!inner(garson_id, garson_ad, created_at, durum)')
+      .select('urun_ad, urun_fiyat, adet, urunler(kategori_id, kategoriler(ad,emoji)), siparisler!inner(garson_id, garson_ad, garson, created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
       .lt('siparisler.created_at', bitis)
@@ -606,8 +606,8 @@ export const raporlarGelismisApi = {
 
     // Ciro topla
     ;(siparisler || []).forEach(s => {
-      const gid = s.garson_id || 'bilinmiyor'
-      const gad = s.garson_ad || 'Bilinmiyor'
+      const gid = s.garson_id || s.garson_ad || 'bilinmiyor'
+      const gad = s.garson_ad || s.garson || 'İsim Yok'
       if (!garsonlar[gid]) {
         garsonlar[gid] = {
           id: gid, ad: gad,
@@ -624,8 +624,8 @@ export const raporlarGelismisApi = {
 
     // Ürün & kategori topla
     ;(kalemler || []).forEach(k => {
-      const gid = k.siparisler?.garson_id || 'bilinmiyor'
-      const gad = k.siparisler?.garson_ad || 'Bilinmiyor'
+      const gid = k.siparisler?.garson_id || k.siparisler?.garson_ad || 'bilinmiyor'
+      const gad = k.siparisler?.garson_ad || k.siparisler?.garson || 'İsim Yok'
       if (!garsonlar[gid]) {
         garsonlar[gid] = { id: gid, ad: gad, siparisSayisi: 0, toplam: 0, urunler: {}, kategoriler: {}, saatDagilim: Array(24).fill(0) }
       }
