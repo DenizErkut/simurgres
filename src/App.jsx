@@ -193,7 +193,9 @@ function Sidebar({ aktif, setAktif, kullanici, cikisYap }) {
           <div style={{ fontSize: 11, color: ROL_RENK[kullanici.rol] }}>{ROL_ETIKET[kullanici.rol]}</div>
         </div>
         <Clock />
-        <button className="btn btn-ghost btn-sm" onClick={cikisYap} title="Çıkış" style={{ padding: '4px 6px', flexShrink: 0 }}>
+        <button className="btn btn-ghost btn-sm" 
+          onClick={() => { if(window.confirm('Çıkış yapmak istiyor musunuz?')) cikisYap() }} 
+          title="Çıkış Yap" style={{ padding: '4px 6px', flexShrink: 0 }}>
           <i className="ti ti-logout" style={{ fontSize: 15 }} aria-hidden="true" />
         </button>
       </div>

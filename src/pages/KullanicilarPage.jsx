@@ -118,6 +118,15 @@ function KullaniciModal({ kullanici, onKaydet, onKapat }) {
 
 export default function KullanicilarPage({ embedded = false }) {
   const { kullanici: ben } = useAuth()
+  
+  // Sadece yönetici
+  if (ben?.rol !== 'yonetici') {
+    return (
+      <div className="empty-state" style={{ marginTop: 60 }}>
+        <p>Bu sayfayı görüntüleme yetkiniz yok</p>
+      </div>
+    )
+  }
   const [kullanicilar, setKullanicilar] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
