@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { siparislerApi, realtimeApi, masalarApi } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
 import { useIzin } from '../contexts/IzinContext'
+import { usePinOnay } from '../contexts/PinOnayContext'
 import toast from 'react-hot-toast'
 import {
   CreditCard, Smartphone, Banknote, FileText,
@@ -554,6 +555,7 @@ export default function KasiyerPage() {
   const [indirim, setIndirim] = useState(null)
   const [modal, setModal] = useState(null)
   const { izinVar } = useIzin()
+  const { pinOnayla } = usePinOnay()
 
   const yukle = useCallback(async () => {
     try {
@@ -638,6 +640,8 @@ export default function KasiyerPage() {
 
   const iadeUygula = async ({ kalemler: seciliKalemler, tutar }) => {
     if (!secili) return
+    const { onaylandi } = await pinOnayla('iade_al', { masaNo: secili.masa_no })
+    if (!onaylandi) return
     try {
       for (const [kalemId, iadeMiktar] of Object.entries(seciliKalemler)) {
         if (!iadeMiktar) continue
@@ -667,7 +671,11 @@ export default function KasiyerPage() {
     } catch (e) { toast.error('İade başarısız: ' + e.message) }
   }
 
-  const indirimUygula = (data) => { setIndirim(data); setModal(null); toast.success('İndirim uygulandı') }
+  const indirimUygula = async (data) => {
+    const { onaylandi } = await pinOnayla('indirim_uygula', { masaNo: secili?.masa_no })
+    if (!onaylandi) return
+    setIndirim(data); setModal(null); toast.success('İndirim uygulandı')
+  }
 
   const kalemler = secili?.siparis_kalemleri || []
   const ara = kalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)

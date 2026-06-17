@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { salonlarApi, masalarApi, kategorilerApi, urunlerApi, siparislerApi, realtimeApi } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
 import { useIzin } from '../contexts/IzinContext'
+import { usePinOnay } from '../contexts/PinOnayContext'
 import toast from 'react-hot-toast'
 import { ShoppingCart, Send, Trash2, ChefHat, ArrowRightLeft, X, ClipboardList } from 'lucide-react'
 
@@ -157,6 +158,7 @@ export default function GarsonPage() {
   const [sepetNotlar, setSepetNotlar] = useState({}) // id -> not
   const [modal, setModal] = useState(null)
   const { izinVar } = useIzin()
+  const { pinOnayla } = usePinOnay()
 
   const masalariYukle = useCallback(async (salon) => {
     if (!salon) return
@@ -235,6 +237,9 @@ export default function GarsonPage() {
 
   const siparisiIptalEt = async (neden) => {
     if (!mevcutSiparis) return
+    // PIN doğrulama
+    const { onaylandi } = await pinOnayla('siparis_iptal', { masaNo: seciliMasa?.no })
+    if (!onaylandi) return
     try {
       await supabase.from('siparisler').update({ durum: 'iptal' }).eq('id', mevcutSiparis.id)
       await masalarApi.updateDurum(seciliMasa.id, 'bos')

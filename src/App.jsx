@@ -20,6 +20,7 @@ import YaziciYonlendirmePage from './pages/YaziciYonlendirmePage'
 import FaturaPage from './pages/FaturaPage'
 import StokPage from './pages/StokPage'
 import RecetePage from './pages/RecetePage'
+import { PinOnayProvider } from './contexts/PinOnayContext'
 import './index.css'
 
 const ROL_RENK = { garson: '#1D9E75', kasiyer: '#BA7517', yonetici: '#D85A30' }
@@ -264,8 +265,10 @@ export default function App() {
   return (
     <AuthProvider>
       <IzinProvider>
+        <PinOnayProvider>
         <Toaster position="bottom-right" toastOptions={{ duration: 3000, style: { fontFamily: 'Inter, sans-serif', fontSize: 13 } }} />
         <AppInner />
+        </PinOnayProvider>
       </IzinProvider>
     </AuthProvider>
   )
