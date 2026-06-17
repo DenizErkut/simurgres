@@ -129,3 +129,127 @@ label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); 
 .pill:hover { background: var(--surface2); }
 .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .topbar-clock { font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; }
+
+/* ─── MOBİL / PWA ─────────────────────────────────────────────────────────── */
+.mobil-topbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 0.5px solid var(--border);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 80;
+}
+
+.hamburger-btn {
+  width: 36px; height: 36px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 5px; background: none; border: none;
+  cursor: pointer; padding: 4px; border-radius: 8px;
+}
+.hamburger-btn span {
+  width: 20px; height: 2px;
+  background: var(--text); border-radius: 2px;
+  transition: all .2s;
+}
+
+@media (max-width: 768px) {
+  :root { --page-padding: 12px; }
+
+  .mobil-topbar { display: flex; }
+  .mobil-overlay { display: block !important; }
+
+  /* Sidebar — varsayılan gizli, açık olunca görünür */
+  .sidebar {
+    position: fixed !important;
+    left: -240px !important;
+    top: 0; bottom: 0;
+    z-index: 95;
+    width: 240px !important;
+    transition: left .25s ease;
+    box-shadow: none;
+  }
+  .sidebar.sidebar-acik {
+    left: 0 !important;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.2);
+  }
+
+  /* Masa grid — mobilde daha büyük */
+  .masa-grid {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .masa-kart { min-height: 80px !important; padding: 14px 6px !important; }
+  .masa-no { font-size: 16px !important; }
+
+  /* Stat kartlar */
+  .stat-kart { padding: 10px 12px !important; }
+  .stat-val { font-size: 18px !important; }
+
+  /* Modal — tam ekran mobilde */
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 92vh !important;
+  }
+  .modal-backdrop {
+    align-items: flex-end !important;
+  }
+
+  /* Kasiyer — tek kolon */
+  .kasiyer-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Pill tabs scroll */
+  .pill-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .pill-tabs::-webkit-scrollbar { display: none; }
+
+  /* Data table scroll */
+  .data-table-wrap { overflow-x: auto; }
+
+  /* Butonlar — daha büyük touch target */
+  .btn { min-height: 36px; }
+  .btn-sm { min-height: 32px; }
+}
+
+@media (max-width: 480px) {
+  .masa-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
+  }
+}
+
+/* Safe area (iPhone notch) */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .sidebar, main { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Garson sayfası mobil 2-ekran */
+@media (max-width: 768px) {
+  .garson-grid {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+  }
+  .garson-sol { display: none !important; }
+  .garson-sol.aktif { display: flex !important; }
+  .garson-sag { display: none !important; }
+  .garson-sag.aktif { display: flex !important; flex-direction: column; }
+  .mobil-geri { display: flex !important; }
+}

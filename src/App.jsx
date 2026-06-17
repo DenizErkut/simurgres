@@ -95,7 +95,7 @@ function Clock() {
   return <span style={{ fontSize: 12, color: 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>{saat}</span>
 }
 
-function Sidebar({ aktif, setAktif, kullanici }) {
+function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
   const { izinVar } = useIzin()
   const { cikisYap } = useAuth()
   const [acikGruplar, setAcikGruplar] = useState({ Raporlar: true, Menü: true, Stok: false, Sistem: false })
@@ -106,7 +106,7 @@ function Sidebar({ aktif, setAktif, kullanici }) {
     <div style={{
       width: 220, background: 'var(--surface)', borderRight: '0.5px solid var(--border)',
       display: 'flex', flexDirection: 'column', height: '100vh', flexShrink: 0, overflow: 'hidden'
-    }}>
+    }} className={`sidebar ${menuAcik ? 'sidebar-acik' : ''}`}>
       {/* Logo */}
       <div style={{ padding: '16px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#D85A30', flexShrink: 0 }} />
@@ -222,6 +222,7 @@ function AppInner() {
   const { kullanici, yukleniyor, cikisYap } = useAuth()
   const { izinVar } = useIzin()
   const [aktif, setAktif] = useState(null)
+  const [menuAcik, setMenuAcik] = useState(false)
 
   // İlk ekranı bul
   useEffect(() => {
@@ -251,12 +252,34 @@ function AppInner() {
     if (item) { AktifEkran = item.component; break }
   }
 
+  const mobilSekimDegistir = (id) => { setAktif(id); setMenuAcik(false) }
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar aktif={aktif} setAktif={setAktif} kullanici={kullanici} />
-      <main style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--bg)' }}>
-        {AktifEkran ? <AktifEkran /> : <div className="empty-state"><p>Erişim yetkiniz yok</p></div>}
-      </main>
+      {/* Mobil overlay */}
+      {menuAcik && (
+        <div onClick={() => setMenuAcik(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          zIndex: 90, display: 'none'
+        }} className="mobil-overlay" />
+      )}
+
+      <Sidebar aktif={aktif} setAktif={mobilSekimDegistir} kullanici={kullanici} menuAcik={menuAcik} />
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Mobil topbar */}
+        <div className="mobil-topbar">
+          <button onClick={() => setMenuAcik(a => !a)} className="hamburger-btn">
+            <span /><span /><span />
+          </button>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>SimurgRes</span>
+          <div style={{ width: 36 }} />
+        </div>
+
+        <main style={{ flex: 1, overflow: 'auto', padding: 'var(--page-padding, 16px)', background: 'var(--bg)' }}>
+          {AktifEkran ? <AktifEkran /> : <div className="empty-state"><p>Erişim yetkiniz yok</p></div>}
+        </main>
+      </div>
     </div>
   )
 }

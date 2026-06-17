@@ -156,6 +156,7 @@ export default function GarsonPage() {
   const [gonderiyor, setGonderiyor] = useState(false)
   const [masaIsim, setMasaIsim] = useState('')       // isimle masa açma
   const [notModal, setNotModal] = useState(null)     // { urun, resolve }
+  const [mobilEkran, setMobilEkran] = useState('masa') // 'masa' | 'siparis'
   const [sepetNotlar, setSepetNotlar] = useState({}) // id -> not
   const [modal, setModal] = useState(null)
   const { izinVar } = useIzin()
@@ -192,6 +193,7 @@ export default function GarsonPage() {
 
   const masaSec = async (masa) => {
     setSeciliMasa(masa); setSepet([]); setMasaIsim(masa.musteri_isim || '')
+    if (window.innerWidth <= 768) setMobilEkran('siparis')
     if (masa.durum === 'dolu') {
       const siparis = await siparislerApi.getByMasa(masa.id)
       setMevcutSiparis(siparis)
@@ -319,7 +321,7 @@ export default function GarsonPage() {
   if (loading) return <div className="loading-center"><div className="spinner" /><span>Yükleniyor...</span></div>
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, height: '100%' }} className="garson-grid">
       {/* SOL: MASALAR */}
       <div>
         <div className="pill-tabs" style={{ marginBottom: 12 }}>
@@ -350,12 +352,18 @@ export default function GarsonPage() {
       </div>
 
       {/* SAĞ: SİPARİŞ PANELİ */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} className={`garson-sag ${mobilEkran === 'siparis' ? 'aktif' : ''}`}>
         <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>
-              {seciliMasa ? `${seciliMasa.no} · ${masaDolu ? 'Dolu' : 'Yeni'}` : 'Masa seçin'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setMobilEkran('masa')} className="btn btn-ghost btn-sm mobil-geri"
+                style={{ display: 'none' }}>
+                ← Masalar
+              </button>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>
+                {seciliMasa ? `${seciliMasa.no} · ${masaDolu ? 'Dolu' : 'Yeni'}` : 'Masa seçin'}
+              </span>
+            </div>
             <ChefHat size={16} color="var(--text2)" />
           </div>
           {seciliMasa && !masaDolu && (
