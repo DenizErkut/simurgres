@@ -95,172 +95,168 @@ function BolunmusOdemeModal({ genel, onOde, onKapat, izinliOdemeler }) {
 }
 
 // ─── ALMAN USULÜ (HERKES KENDİ PAYINI ÖDER) ──────────────────────────────────
-function AlmanUsulModal({ siparis, genel, onOde, onKapat, izinliOdemeler }) {
+function AlmanUsulModal({ siparis, genel, onOde, onKisimOde, onKapat, izinliOdemeler }) {
   const kalemler = siparis?.siparis_kalemleri || []
-  // Gruplu kalemler
-  const gruplu = Object.values(kalemler.reduce((acc, k) => {
-    if (acc[k.urun_ad]) acc[k.urun_ad].adet += k.adet
-    else acc[k.urun_ad] = { ...k }
-    return acc
-  }, {}))
+
+  // Her kalemi ayrı satır olarak listele
+  const tumKalemler = kalemler.flatMap(k =>
+    Array.from({ length: k.adet }, (_, i) => ({
+      ...k,
+      _uid: `${k.id}_${i}`,
+      adet: 1
+    }))
+  )
 
   const [kisiler, setKisiler] = useState([
-    { id: 1, ad: 'Kişi 1', secimler: {}, odendi: false, yontem: izinliOdemeler[0]?.label || 'Nakit' }
+    { id: 1, ad: 'Kişi 1', secimler: new Set(), odendi: false, yontem: izinliOdemeler[0]?.label || 'Nakit' }
   ])
+  const [isleniyor, setIsleniyor] = useState(false)
 
   const kisiEkle = () => {
     const n = kisiler.length + 1
-    setKisiler(p => [...p, { id: Date.now(), ad: `Kişi ${n}`, secimler: {}, odendi: false, yontem: izinliOdemeler[0]?.label || 'Nakit' }])
+    setKisiler(p => [...p, { id: Date.now(), ad: `Kişi ${n}`, secimler: new Set(), odendi: false, yontem: izinliOdemeler[0]?.label || 'Nakit' }])
   }
   const kisiSil = (id) => setKisiler(p => p.filter(k => k.id !== id))
 
-  const secimDegistir = (kisiId, urunAd, adet) => {
-    setKisiler(p => p.map(k => k.id === kisiId ? { ...k, secimler: { ...k.secimler, [urunAd]: Math.max(0, adet) } } : k))
+  const kalemToggle = (kisiId, uid) => {
+    setKisiler(p => p.map(k => {
+      if (k.id !== kisiId || k.odendi) return k
+      const baskasinda = p.some(x => x.id !== kisiId && x.secimler.has(uid))
+      if (baskasinda) return k
+      const yeni = new Set(k.secimler)
+      if (yeni.has(uid)) yeni.delete(uid)
+      else yeni.add(uid)
+      return { ...k, secimler: yeni }
+    }))
   }
 
-  const kisiToplam = (kisi) => {
-    return gruplu.reduce((acc, u) => {
-      const adet = kisi.secimler[u.urun_ad] || 0
-      return acc + u.urun_fiyat * adet
-    }, 0)
-  }
+  const kisiToplam = (kisi) =>
+    tumKalemler.filter(k => kisi.secimler.has(k._uid)).reduce((a, k) => a + k.urun_fiyat, 0)
 
-  // Her üründen kaç adet seçildi
-  const seciliAdet = (urunAd) => kisiler.reduce((a, k) => a + (k.secimler[urunAd] || 0), 0)
-  const kalanAdet = (u) => u.adet - seciliAdet(u.urun_ad)
-
-  const tumAtanmis = gruplu.every(u => kalanAdet(u) === 0)
-  const toplamOdenen = kisiler.reduce((a, k) => a + kisiToplam(k), 0)
-
-  const kisiOde = (kisiId) => {
-    setKisiler(p => p.map(k => k.id === kisiId ? { ...k, odendi: true } : k))
-    const kisi = kisiler.find(k => k.id === kisiId)
-    toast.success(`${kisi.ad} ödedi — ₺${kisiToplam(kisi).toFixed(2)} (${kisi.yontem})`)
-  }
-
-  const hepsiniTamamla = () => {
-    // Sadece ödendi işaretlenenler + toplamı sıfır olmayanlar
-    const odemeler = kisiler
-      .filter(k => k.odendi && kisiToplam(k) > 0)
-      .map(k => ({ yontem: k.yontem, tutar: kisiToplam(k) }))
-    
-    // Ödenmemiş kişiler varsa onları da varsayılan yöntemle ekle
-    kisiler.filter(k => !k.odendi && kisiToplam(k) > 0).forEach(k => {
-      odemeler.push({ yontem: k.yontem, tutar: kisiToplam(k) })
-    })
-    
-    onOde(odemeler)
-  }
-
+  const atanmisUidler = new Set(kisiler.flatMap(k => [...k.secimler]))
+  const tumAtanmis = tumKalemler.every(k => atanmisUidler.has(k._uid))
+  const toplamOdenen = kisiler.filter(k => k.odendi).reduce((a, k) => a + kisiToplam(k), 0)
   const hepsiOdedi = kisiler.every(k => k.odendi || kisiToplam(k) === 0)
+
+  // Kişiyi öde — ödenen ürünleri masadan sil, masa açık kalır
+  const kisiOde = async (kisiId) => {
+    const kisi = kisiler.find(k => k.id === kisiId)
+    if (!kisi || kisi.odendi || kisiToplam(kisi) === 0) return
+    setIsleniyor(true)
+    try {
+      const silinecekler = tumKalemler.filter(k => kisi.secimler.has(k._uid))
+      await onKisimOde(siparis, silinecekler, kisi.yontem, kisiToplam(kisi))
+      setKisiler(p => p.map(k => k.id === kisiId ? { ...k, odendi: true } : k))
+      toast.success(`${kisi.ad} ödedi ✓ — ₺${kisiToplam(kisi).toFixed(2)} (${kisi.yontem})`)
+    } catch (e) {
+      toast.error('Ödeme hatası: ' + e.message)
+    } finally { setIsleniyor(false) }
+  }
+
+  const hepsiniTamamla = () => onOde(kisiler.map(k => ({ yontem: k.yontem, tutar: kisiToplam(k) })))
 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onKapat()}>
-      <div className="modal" style={{ width: 560, maxHeight: '85vh' }}>
+      <div className="modal" style={{ width: 580, maxHeight: '88vh' }}>
         <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Users size={15} /> Alman Usulü — Herkes Kendi Payını Öder
         </div>
 
-        {/* Ürün listesi ve dağıtım */}
+        {/* Ürün-Kişi atama tablosu */}
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)', marginBottom: 8 }}>Ürün Dağıtımı</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 6 }}>
+            Ürünlere tıklayarak kişilere atayın — ödenen ürünler masadan düşer
+          </div>
           <div style={{ maxHeight: 200, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--surface2)' }}>
-                  <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 500, color: 'var(--text2)' }}>Ürün</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--text2)', fontWeight: 500 }}>Kalan</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 500, color: 'var(--text2)', fontSize: 12 }}>Ürün</th>
+                  <th style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 500, color: 'var(--text2)', fontSize: 12 }}>Fiyat</th>
                   {kisiler.map(k => (
-                    <th key={k.id} style={{ padding: '6px 8px', textAlign: 'center', color: k.odendi ? 'var(--green)' : 'var(--text2)', fontWeight: 500, minWidth: 70 }}>
+                    <th key={k.id} style={{ padding: '7px 8px', textAlign: 'center', fontWeight: 500, fontSize: 12,
+                      color: k.odendi ? 'var(--green)' : 'var(--text2)', minWidth: 70 }}>
                       {k.ad}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {gruplu.map(u => (
-                  <tr key={u.urun_ad} style={{ borderTop: '0.5px solid var(--border)' }}>
-                    <td style={{ padding: '6px 10px' }}>
-                      <div>{u.urun_ad}</div>
-                      <div style={{ color: 'var(--text3)', fontSize: 11 }}>₺{u.urun_fiyat} x{u.adet}</div>
-                    </td>
-                    <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                      <span style={{
-                        background: kalanAdet(u) === 0 ? 'var(--green-light)' : 'var(--amber-light)',
-                        color: kalanAdet(u) === 0 ? '#085041' : '#633806',
-                        padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 600
-                      }}>
-                        {kalanAdet(u)}
-                      </span>
-                    </td>
-                    {kisiler.map(k => (
-                      <td key={k.id} style={{ padding: '4px 6px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'center' }}>
-                          <button className="adet-btn" style={{ width: 32, height: 32, fontSize: 16 }}
-                            onClick={() => secimDegistir(k.id, u.urun_ad, (k.secimler[u.urun_ad] || 0) - 1)}
-                            disabled={k.odendi}>−</button>
-                          <span style={{ fontSize: 14, minWidth: 22, textAlign: 'center', fontWeight: 600 }}>
-                            {k.secimler[u.urun_ad] || 0}
-                          </span>
-                          <button className="adet-btn" style={{ width: 32, height: 32, fontSize: 16 }}
-                            onClick={() => secimDegistir(k.id, u.urun_ad, (k.secimler[u.urun_ad] || 0) + 1)}
-                            disabled={k.odendi || kalanAdet(u) <= 0}>+</button>
-                        </div>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {tumKalemler.map(u => {
+                  const atanan = kisiler.find(k => k.secimler.has(u._uid))
+                  return (
+                    <tr key={u._uid} style={{ borderTop: '0.5px solid var(--border)',
+                      background: atanan ? (atanan.odendi ? 'var(--green-light)' : 'var(--accent-light)') : 'transparent' }}>
+                      <td style={{ padding: '8px 12px' }}>{u.emoji} {u.urun_ad}</td>
+                      <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 500, color: 'var(--accent)' }}>₺{u.urun_fiyat}</td>
+                      {kisiler.map(k => (
+                        <td key={k.id} style={{ padding: '6px 8px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => kalemToggle(k.id, u._uid)}
+                            disabled={k.odendi || (atanan && atanan.id !== k.id)}
+                            style={{
+                              width: 30, height: 30, borderRadius: 6,
+                              border: k.secimler.has(u._uid) ? '2px solid var(--green)' : '1px solid var(--border-md)',
+                              background: k.secimler.has(u._uid) ? 'var(--green)' : 'transparent',
+                              cursor: k.odendi || (atanan && atanan.id !== k.id) ? 'not-allowed' : 'pointer',
+                              color: '#fff', fontSize: 15, fontWeight: 700,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              margin: '0 auto', opacity: atanan && atanan.id !== k.id ? .25 : 1,
+                              fontFamily: 'inherit'
+                            }}>
+                            {k.secimler.has(u._uid) ? '✓' : ''}
+                          </button>
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
           {!tumAtanmis && (
-            <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 6 }}>
-              ⚠️ Bazı ürünler henüz kişilere atanmadı
+            <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 5 }}>
+              ⚠️ Atanmayan ürünler masada kalır
             </div>
           )}
         </div>
 
         {/* Kişi ödemeleri */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)' }}>Kişi Ödemeleri</div>
           {kisiler.map(k => {
             const toplam = kisiToplam(k)
             return (
               <div key={k.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '14px 14px', borderRadius: 'var(--radius)',
+                display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 'var(--radius)',
                 border: k.odendi ? '2px solid var(--green)' : '1px solid var(--border)',
-                background: k.odendi ? 'var(--green-light)' : 'var(--surface2)',
-                opacity: toplam === 0 ? .5 : 1, flexWrap: 'wrap'
+                background: k.odendi ? 'var(--green-light)' : 'var(--surface2)'
               }}>
-                <input value={k.ad} onChange={e => setKisiler(p => p.map(x => x.id === k.id ? { ...x, ad: e.target.value } : x))}
-                  style={{ width: 100, padding: '8px 10px', fontSize: 13, background: 'transparent', border: '1px solid var(--border-md)', borderRadius: 6 }}
+                <input value={k.ad}
+                  onChange={e => setKisiler(p => p.map(x => x.id === k.id ? { ...x, ad: e.target.value } : x))}
+                  style={{ width: 90, padding: '7px 10px', fontSize: 13, background: 'transparent', border: '1px solid var(--border-md)', borderRadius: 6 }}
                   disabled={k.odendi} />
-                <select value={k.yontem} onChange={e => setKisiler(p => p.map(x => x.id === k.id ? { ...x, yontem: e.target.value } : x))}
-                  style={{ width: 130, padding: '8px 10px', fontSize: 13 }} disabled={k.odendi}>
+                <select value={k.yontem}
+                  onChange={e => setKisiler(p => p.map(x => x.id === k.id ? { ...x, yontem: e.target.value } : x))}
+                  style={{ width: 120, padding: '7px 10px', fontSize: 13 }} disabled={k.odendi}>
                   {izinliOdemeler.map(o => <option key={o.label}>{o.label}</option>)}
                 </select>
-                <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: k.odendi ? '#085041' : 'var(--accent)', textAlign: 'right', minWidth: 80 }}>
+                <div style={{ flex: 1, fontSize: 15, fontWeight: 700, textAlign: 'right',
+                  color: k.odendi ? '#085041' : toplam > 0 ? 'var(--accent)' : 'var(--text3)' }}>
                   ₺{toplam.toFixed(2)}
                 </div>
                 {!k.odendi ? (
                   <>
-                    <button onClick={() => kisiOde(k.id)} disabled={toplam === 0}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '10px 18px', borderRadius: 8, border: 'none',
-                        background: toplam === 0 ? 'var(--surface)' : 'var(--green)',
-                        color: '#fff', fontWeight: 600, fontSize: 14,
-                        cursor: toplam === 0 ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit', whiteSpace: 'nowrap',
-                        touchAction: 'manipulation'
-                      }}>
-                      <CheckCircle size={15} /> Ödedi
+                    <button onClick={() => kisiOde(k.id)} disabled={toplam === 0 || isleniyor}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
+                        borderRadius: 8, border: 'none', background: toplam === 0 ? 'var(--surface)' : '#1D9E75',
+                        color: '#fff', fontWeight: 600, fontSize: 14, cursor: toplam === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      <CheckCircle size={14} /> Ödedi
                     </button>
                     {kisiler.length > 1 && (
                       <button onClick={() => kisiSil(k.id)}
-                        style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--red)', fontFamily: 'inherit' }}>
-                        <Trash2 size={15} />
+                        style={{ padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--red)', fontFamily: 'inherit' }}>
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </>
@@ -277,9 +273,8 @@ function AlmanUsulModal({ siparis, genel, onOde, onKapat, izinliOdemeler }) {
           </button>
         </div>
 
-        {/* Toplam özet */}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--radius)', fontSize: 13, marginBottom: 12 }}>
-          <span style={{ color: 'var(--text2)' }}>Toplam / Ödenecek</span>
+          <span style={{ color: 'var(--text2)' }}>Tahsil Edilen / Toplam</span>
           <span>
             <span style={{ color: 'var(--green)', fontWeight: 600 }}>₺{toplamOdenen.toFixed(2)}</span>
             <span style={{ color: 'var(--text3)' }}> / ₺{genel.toFixed(2)}</span>
@@ -287,14 +282,12 @@ function AlmanUsulModal({ siparis, genel, onOde, onKapat, izinliOdemeler }) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onKapat}>İptal</button>
-          <button className="btn btn-primary"
-            disabled={toplamOdenen === 0 && !hepsiOdedi}
-            onClick={hepsiniTamamla}
-            style={{ opacity: hepsiOdedi ? 1 : 0.8 }}>
-            <CheckCircle size={13} />
-            {hepsiOdedi ? 'Hesabı Kapat' : `Hesabı Kapat (₺${(genel - toplamOdenen).toFixed(2)} kalan)`}
-          </button>
+          <button className="btn btn-ghost" onClick={onKapat}>Masayı Açık Bırak</button>
+          {hepsiOdedi && (
+            <button className="btn btn-primary" onClick={hepsiniTamamla}>
+              <CheckCircle size={13} /> Hesabı Kapat
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -516,6 +509,33 @@ export default function KasiyerPage() {
     const sub = realtimeApi.siparislerSubscribe(yukle)
     return () => realtimeApi.unsubscribe(sub)
   }, [yukle])
+
+  // Alman usulü — kısmi ödeme: seçilen ürünleri masadan sil, masa açık kalır
+  const kisimOde = async (siparis, silinecekler, yontem, tutar) => {
+    for (const kalem of silinecekler) {
+      if (kalem.adet === 1) {
+        // Kalemi tamamen sil
+        await supabase.from('siparis_kalemleri').delete().eq('id', kalem.id)
+      } else {
+        // Adeti 1 azalt
+        await supabase.from('siparis_kalemleri').update({ adet: kalem.adet - 1 }).eq('id', kalem.id)
+      }
+    }
+    // Siparişin yeni toplamını hesapla ve güncelle
+    const { data: kalanlar } = await supabase.from('siparis_kalemleri')
+      .select('urun_fiyat, adet').eq('siparis_id', siparis.id)
+    const yeniToplam = (kalanlar || []).reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
+    const yeniKdv = +(yeniToplam * 0.1).toFixed(2)
+    await supabase.from('siparisler').update({
+      toplam: yeniToplam, kdv_tutar: yeniKdv,
+      genel_toplam: +(yeniToplam + yeniKdv).toFixed(2)
+    }).eq('id', siparis.id)
+    // Siparişleri yenile ama masayı kapatma
+    const guncellenmis = await siparislerApi.getAcikSiparisler()
+    setSiparisler(guncellenmis)
+    const yeniSecili = guncellenmis.find(s => s.id === siparis.id)
+    setSecili(yeniSecili || null)
+  }
 
   const hesabiKapat = async (odemeSatirlari) => {
     if (!secili) return
@@ -741,7 +761,9 @@ export default function KasiyerPage() {
       )}
       {modal === 'alman' && secili && (
         <AlmanUsulModal siparis={secili} genel={genel} izinliOdemeler={izinliOdemeler}
-          onOde={(odemeler) => hesabiKapat(odemeler)} onKapat={() => setModal(null)} />
+          onOde={(odemeler) => hesabiKapat(odemeler)}
+          onKisimOde={kisimOde}
+          onKapat={() => setModal(null)} />
       )}
     </div>
   )
