@@ -16,6 +16,7 @@ import GetirPage from './pages/GetirPage'
 import TrendyolPage from './pages/TrendyolPage'
 import MigrosPage from './pages/MigrosPage'
 import OKCPage from './pages/OKCPage'
+import YaziciPage from './pages/YaziciPage'
 import './index.css'
 
 // Rol bazlı ekran tanımları
@@ -85,6 +86,12 @@ const TUM_EKRANLAR = [
     component: OKCPage,
     roller: [ROL.YONETICI],
     renk: '#444441', bg: '#F1EFE8'
+  },
+  {
+    id: 'yazici', label: 'Yazıcılar', icon: Printer,
+    component: YaziciPage,
+    roller: [ROL.YONETICI],
+    renk: '#185FA5', bg: '#E6F1FB'
   },
 ]
 
