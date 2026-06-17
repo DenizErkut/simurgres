@@ -375,16 +375,31 @@ export default function GarsonPage() {
                       </button>
                     ))}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, overflowY: 'auto', flex: 1 }}>
-                    {filtreliUrunler.map(u => (
-                      <div key={u.id} onClick={() => urunEkle(u)}
-                        style={{ padding: '8px 10px', borderRadius: 'var(--radius)', border: '0.5px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', transition: 'all .15s' }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                        <div style={{ fontSize: 12, fontWeight: 500 }}>{u.emoji} {u.ad}</div>
-                        <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>₺{u.fiyat}</div>
-                      </div>
-                    ))}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, overflowY: 'auto', flex: 1 }}>
+                    {filtreliUrunler.map(u => {
+                      const adet = sepet.find(s => s.id === u.id)?.adet || 0
+                      return (
+                        <div key={u.id}
+                          style={{ padding: '10px 10px', borderRadius: 'var(--radius)', border: `1.5px solid ${adet > 0 ? 'var(--accent)' : 'var(--border)'}`, background: adet > 0 ? 'var(--accent-light)' : 'var(--surface2)', cursor: 'pointer', transition: 'all .15s', position: 'relative' }}
+                          onMouseEnter={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--accent)' }}
+                          onMouseLeave={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--border)' }}>
+                          {adet > 0 && (
+                            <span style={{ position: 'absolute', top: 6, right: 6, background: 'var(--accent)', color: '#fff', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{adet}</span>
+                          )}
+                          <div onClick={() => urunEkle(u)}>
+                            <div style={{ fontSize: 13, fontWeight: 500 }}>{u.emoji} {u.ad}</div>
+                            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 3, fontWeight: 600 }}>₺{u.fiyat}</div>
+                          </div>
+                          {adet > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                              <button className="adet-btn" style={{ width: 30, height: 30, fontSize: 16 }} onClick={() => adetDegistir(u.id, -1)}>−</button>
+                              <span style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{adet}</span>
+                              <button className="adet-btn" style={{ width: 30, height: 30, fontSize: 16 }} onClick={() => urunEkle(u)}>+</button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </>
               ) : (
@@ -411,7 +426,7 @@ export default function GarsonPage() {
                   <span className="sepet-ad">{s.emoji} {s.ad}</span>
                   <div className="adet-ctrl">
                     <button className="adet-btn" onClick={() => adetDegistir(s.id, -1)}>−</button>
-                    <span style={{ fontSize: 13, minWidth: 16, textAlign: 'center' }}>{s.adet}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, minWidth: 28, textAlign: 'center' }}>{s.adet}</span>
                     <button className="adet-btn" onClick={() => adetDegistir(s.id, 1)}>+</button>
                   </div>
                   <span className="sepet-fiyat">₺{s.fiyat * s.adet}</span>
