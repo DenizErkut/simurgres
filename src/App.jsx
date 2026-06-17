@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { ChefHat, ShoppingBag, CreditCard, BarChart2, UtensilsCrossed, Users, LogOut, Settings, Truck, Printer } from 'lucide-react'
 import { AuthProvider, useAuth, ROL } from './contexts/AuthContext'
-import { IzinProvider } from './contexts/IzinContext'
+import { IzinProvider, useIzin } from './contexts/IzinContext'
 import LoginPage from './pages/LoginPage'
 import GarsonPage from './pages/GarsonPage'
 import KDSPage from './pages/KDSPage'
@@ -18,102 +17,73 @@ import MigrosPage from './pages/MigrosPage'
 import OKCPage from './pages/OKCPage'
 import YaziciPage from './pages/YaziciPage'
 import YaziciYonlendirmePage from './pages/YaziciYonlendirmePage'
+import FaturaPage from './pages/FaturaPage'
+import StokPage from './pages/StokPage'
+import RecetePage from './pages/RecetePage'
 import './index.css'
 
-// Rol bazlı ekran tanımları
-const TUM_EKRANLAR = [
+const ROL_RENK = { garson: '#1D9E75', kasiyer: '#BA7517', yonetici: '#D85A30' }
+const ROL_ETIKET = { garson: 'Garson', kasiyer: 'Kasiyer', yonetici: 'Yönetici' }
+
+// ─── NAV YAPISI ──────────────────────────────────────────────────────────────
+const NAV = [
   {
-    id: 'garson', label: 'Garson', icon: UtensilsCrossed,
-    component: GarsonPage,
+    grup: 'Operasyon',
     roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
-    renk: '#1D9E75', bg: '#E1F5EE'
+    items: [
+      { id: 'garson',  label: 'Garson',  icon: 'ti-tools-kitchen-2', component: GarsonPage,  roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#D85A30', bg: '#FAECE7' },
+      { id: 'kds',     label: 'Mutfak',  icon: 'ti-chef-hat',        component: KDSPage,     roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#1D9E75', bg: '#E1F5EE' },
+      { id: 'kasiyer', label: 'Kasiyer', icon: 'ti-credit-card',     component: KasiyerPage, roller: [ROL.KASIYER, ROL.YONETICI],              renk: '#BA7517', bg: '#FAEEDA' },
+    ]
   },
   {
-    id: 'kds', label: 'Mutfak', icon: ChefHat,
-    component: KDSPage,
-    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
-    renk: '#D85A30', bg: '#FAECE7'
-  },
-  {
-    id: 'kasiyer', label: 'Kasiyer', icon: CreditCard,
-    component: KasiyerPage,
+    grup: 'Platformlar',
     roller: [ROL.KASIYER, ROL.YONETICI],
-    renk: '#BA7517', bg: '#FAEEDA'
+    items: [
+      { id: 'yemeksepeti', label: 'Yemeksepeti', icon: 'ti-bike',         component: YemeksepetPage, roller: [ROL.KASIYER, ROL.YONETICI], renk: '#FA0050', bg: '#FFEBF0' },
+      { id: 'getir',       label: 'Getir',        icon: 'ti-motorbike',    component: GetirPage,      roller: [ROL.KASIYER, ROL.YONETICI], renk: '#5d3ebc', bg: '#EEEDFE' },
+      { id: 'trendyol',    label: 'Trendyol',     icon: 'ti-shopping-bag', component: TrendyolPage,   roller: [ROL.KASIYER, ROL.YONETICI], renk: '#f27a1a', bg: '#FEF3E7' },
+      { id: 'migros',      label: 'Migros',        icon: 'ti-basket',       component: MigrosPage,     roller: [ROL.KASIYER, ROL.YONETICI], renk: '#E4002B', bg: '#FDECED' },
+    ]
   },
   {
-    id: 'menu', label: 'Menü', icon: ShoppingBag,
-    component: MenuPage,
+    grup: 'Raporlar',
     roller: [ROL.YONETICI],
-    renk: '#534AB7', bg: '#EEEDFE'
+    izin: 'rapor_gunluk',
+    items: [
+      { id: 'rapor', label: 'Günlük Rapor', icon: 'ti-chart-bar', component: DashboardPage, roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
+    ]
   },
   {
-    id: 'rapor', label: 'Rapor', icon: BarChart2,
-    component: DashboardPage,
+    grup: 'Menü',
     roller: [ROL.YONETICI],
-    renk: '#185FA5', bg: '#E6F1FB'
+    izin: 'menu_duzenle',
+    items: [
+      { id: 'menu',   label: 'Ürünler',    icon: 'ti-soup',       component: MenuPage,    roller: [ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE' },
+      { id: 'recete', label: 'Reçeteler',  icon: 'ti-git-branch', component: RecetePage,  roller: [ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'recete_goruntule' },
+    ]
   },
   {
-    id: 'yonetim', label: 'Yönetim', icon: Settings,
-    component: YonetimPage,
+    grup: 'Stok',
     roller: [ROL.YONETICI],
-    renk: '#6b6b6b', bg: '#f1efe8'
+    izin: 'stok_goruntule',
+    items: [
+      { id: 'stok',   label: 'Stok Durumu',  icon: 'ti-package',      component: StokPage,   roller: [ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'stok_goruntule' },
+      { id: 'fatura', label: 'Fatura Girişi', icon: 'ti-file-invoice', component: FaturaPage, roller: [ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'fatura_goruntule' },
+    ]
   },
   {
-    id: 'yemeksepeti', label: 'Yemeksepeti', icon: Truck,
-    component: YemeksepetPage,
-    roller: [ROL.KASIYER, ROL.YONETICI],
-    renk: '#FA0050', bg: '#FFEBF0'
-  },
-  {
-    id: 'getir', label: 'Getir', icon: Truck,
-    component: GetirPage,
-    roller: [ROL.KASIYER, ROL.YONETICI],
-    renk: '#5d3ebc', bg: '#EEEDFE'
-  },
-  {
-    id: 'trendyol', label: 'Trendyol', icon: Truck,
-    component: TrendyolPage,
-    roller: [ROL.KASIYER, ROL.YONETICI],
-    renk: '#f27a1a', bg: '#FEF3E7'
-  },
-  {
-    id: 'migros', label: 'Migros', icon: Truck,
-    component: MigrosPage,
-    roller: [ROL.KASIYER, ROL.YONETICI],
-    renk: '#E4002B', bg: '#FDECED'
-  },
-  {
-    id: 'okc', label: 'ÖKC / ECR', icon: Printer,
-    component: OKCPage,
+    grup: 'Sistem',
     roller: [ROL.YONETICI],
-    renk: '#444441', bg: '#F1EFE8'
-  },
-  {
-    id: 'yazici', label: 'Yazıcılar', icon: Printer,
-    component: YaziciPage,
-    roller: [ROL.YONETICI],
-    renk: '#185FA5', bg: '#E6F1FB'
-  },
-  {
-    id: 'yazici_yonlendirme', label: 'Yönlendirme', icon: Printer,
-    component: YaziciYonlendirmePage,
-    roller: [ROL.YONETICI],
-    renk: '#639922', bg: '#EAF3DE'
+    items: [
+      { id: 'yonetim',           label: 'Salonlar & Masalar', icon: 'ti-layout-sidebar',  component: YonetimPage,            roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
+      { id: 'kullanicilar',      label: 'Kullanıcılar',       icon: 'ti-users',            component: KullanicilarPage,       roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
+      { id: 'yazici',            label: 'Yazıcılar',          icon: 'ti-printer',          component: YaziciPage,             roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
+      { id: 'yazici_yonlendirme',label: 'Yönlendirme',        icon: 'ti-arrow-fork',       component: YaziciYonlendirmePage,  roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
+      { id: 'okc',               label: 'ÖKC / ECR',          icon: 'ti-device-desktop',   component: OKCPage,                roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
+    ]
   },
 ]
-
-
-const ROL_RENK = {
-  garson: '#1D9E75',
-  kasiyer: '#BA7517',
-  yonetici: '#D85A30'
-}
-
-const ROL_ETIKET = {
-  garson: 'Garson',
-  kasiyer: 'Kasiyer',
-  yonetici: 'Yönetici'
-}
 
 function Clock() {
   const [saat, setSaat] = useState('')
@@ -121,109 +91,154 @@ function Clock() {
     const g = () => setSaat(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }))
     g(); const id = setInterval(g, 10000); return () => clearInterval(id)
   }, [])
-  return <span className="topbar-clock">{saat}</span>
+  return <span style={{ fontSize: 12, color: 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>{saat}</span>
+}
+
+function Sidebar({ aktif, setAktif, kullanici, cikisYap }) {
+  const { izinVar } = useIzin()
+  const [acikGruplar, setAcikGruplar] = useState({ Raporlar: true, Menü: true, Stok: false, Sistem: false })
+
+  const grupToggle = (grup) => setAcikGruplar(p => ({ ...p, [grup]: !p[grup] }))
+
+  return (
+    <div style={{
+      width: 220, background: 'var(--surface)', borderRight: '0.5px solid var(--border)',
+      display: 'flex', flexDirection: 'column', height: '100vh', flexShrink: 0, overflow: 'hidden'
+    }}>
+      {/* Logo */}
+      <div style={{ padding: '16px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#D85A30', flexShrink: 0 }} />
+        <span style={{ fontSize: 15, fontWeight: 600 }}>SimurgRes</span>
+      </div>
+
+      {/* Nav */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+        {NAV.map(grup => {
+          if (!grup.roller.includes(kullanici.rol)) return null
+          if (grup.izin && !izinVar(grup.izin) && kullanici.rol !== ROL.YONETICI) return null
+
+          const gorunurItems = grup.items.filter(item =>
+            item.roller.includes(kullanici.rol) &&
+            (!item.izin || izinVar(item.izin) || kullanici.rol === ROL.YONETICI)
+          )
+          if (gorunurItems.length === 0) return null
+
+          const yonetimGrubu = ['Raporlar','Menü','Stok','Sistem'].includes(grup.grup)
+
+          return (
+            <div key={grup.grup} style={{ marginBottom: 2 }}>
+              {/* Grup başlığı */}
+              <button
+                onClick={() => yonetimGrubu && grupToggle(grup.grup)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', padding: '6px 14px 3px',
+                  background: 'transparent', border: 'none', cursor: yonetimGrubu ? 'pointer' : 'default',
+                  fontFamily: 'inherit'
+                }}>
+                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.06em', flex: 1, textAlign: 'left' }}>
+                  {grup.grup}
+                </span>
+                {yonetimGrubu && (
+                  <i className={`ti ${acikGruplar[grup.grup] ? 'ti-chevron-down' : 'ti-chevron-right'}`}
+                    style={{ fontSize: 12, color: 'var(--text3)' }} aria-hidden="true" />
+                )}
+              </button>
+
+              {/* Items */}
+              {(!yonetimGrubu || acikGruplar[grup.grup]) && gorunurItems.map(item => {
+                const isActive = aktif === item.id
+                return (
+                  <button key={item.id}
+                    onClick={() => setAktif(item.id)}
+                    style={{
+                      width: 'calc(100% - 12px)', margin: '1px 6px',
+                      display: 'flex', alignItems: 'center', gap: 9,
+                      padding: '7px 10px', borderRadius: 6, border: 'none',
+                      background: isActive ? item.bg : 'transparent',
+                      cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+                      fontWeight: isActive ? 500 : 400,
+                      color: isActive ? item.renk : 'var(--text2)',
+                      transition: 'all .12s', textAlign: 'left'
+                    }}
+                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.color = 'var(--text)' }}}
+                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)' }}}>
+                    <i className={`ti ${item.icon}`} style={{ fontSize: 16, width: 18, textAlign: 'center', flexShrink: 0 }} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                )
+              })}
+
+              {/* Divider */}
+              {['Operasyon','Platformlar'].includes(grup.grup) && (
+                <div style={{ height: '0.5px', background: 'var(--border)', margin: '6px 0' }} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Kullanıcı alanı */}
+      <div style={{ padding: '10px 12px', borderTop: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{
+          width: 30, height: 30, borderRadius: '50%', background: 'var(--accent-light)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 600, color: 'var(--accent)', flexShrink: 0
+        }}>
+          {kullanici.ad_soyad?.charAt(0)?.toUpperCase() || '?'}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {kullanici.ad_soyad}
+          </div>
+          <div style={{ fontSize: 11, color: ROL_RENK[kullanici.rol] }}>{ROL_ETIKET[kullanici.rol]}</div>
+        </div>
+        <Clock />
+        <button className="btn btn-ghost btn-sm" onClick={cikisYap} title="Çıkış" style={{ padding: '4px 6px', flexShrink: 0 }}>
+          <i className="ti ti-logout" style={{ fontSize: 15 }} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function AppInner() {
   const { kullanici, yukleniyor, cikisYap } = useAuth()
+  const { izinVar } = useIzin()
   const [aktif, setAktif] = useState(null)
 
-  // Kullanıcının görebileceği ekranlar
-  const gorunurEkranlar = kullanici
-    ? TUM_EKRANLAR.filter(e => e.roller.includes(kullanici.rol))
-    : []
-
-  // İlk erişilebilir ekranı seç
+  // İlk ekranı bul
   useEffect(() => {
-    if (gorunurEkranlar.length > 0 && !aktif) {
-      setAktif(gorunurEkranlar[0].id)
+    if (!kullanici || aktif) return
+    for (const grup of NAV) {
+      for (const item of grup.items) {
+        if (item.roller.includes(kullanici.rol)) { setAktif(item.id); return }
+      }
     }
   }, [kullanici])
 
-  // Rol değişiminde geçersiz ekran varsa sıfırla
-  useEffect(() => {
-    if (aktif && !gorunurEkranlar.find(e => e.id === aktif)) {
-      setAktif(gorunurEkranlar[0]?.id || null)
-    }
-  }, [kullanici?.rol])
-
-  if (yukleniyor) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="spinner" style={{ margin: '0 auto 12px' }} />
-          <div style={{ fontSize: 13, color: 'var(--text2)' }}>SimurgRes yükleniyor...</div>
-        </div>
+  if (yukleniyor) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div className="spinner" style={{ margin: '0 auto 12px' }} />
+        <div style={{ fontSize: 13, color: 'var(--text2)' }}>SimurgRes yükleniyor...</div>
       </div>
-    )
-  }
+    </div>
+  )
 
   if (!kullanici) return <LoginPage />
 
-  const AktifEkran = gorunurEkranlar.find(e => e.id === aktif)?.component
+  // Aktif component bul
+  let AktifEkran = null
+  for (const grup of NAV) {
+    const item = grup.items.find(i => i.id === aktif)
+    if (item) { AktifEkran = item.component; break }
+  }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="logo">
-          <span className="logo-dot" />
-          SimurgRes
-        </div>
-
-        <nav className="nav">
-          {gorunurEkranlar.map(({ id, label, icon: Icon, renk, bg }) => (
-            <button key={id}
-              onClick={() => setAktif(id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: '8px 16px',
-                borderRadius: 'var(--radius)',
-                border: aktif === id ? `1.5px solid ${renk}` : '1.5px solid transparent',
-                background: aktif === id ? bg : 'transparent',
-                cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
-                fontWeight: aktif === id ? 600 : 400,
-                color: aktif === id ? renk : 'var(--text2)',
-                transition: 'all .15s'
-              }}
-              onMouseEnter={e => { if (aktif !== id) { e.currentTarget.style.background = bg; e.currentTarget.style.color = renk }}}
-              onMouseLeave={e => { if (aktif !== id) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)' }}}>
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Clock />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: 'var(--accent-light)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 600, color: 'var(--accent)'
-            }}>
-              {kullanici.ad_soyad?.charAt(0)?.toUpperCase() || '?'}
-            </div>
-            <div style={{ lineHeight: 1.2 }}>
-              <div style={{ fontSize: 12, fontWeight: 500 }}>{kullanici.ad_soyad || kullanici.email}</div>
-              <div style={{ fontSize: 11, color: ROL_RENK[kullanici.rol] || 'var(--text2)' }}>
-                {ROL_ETIKET[kullanici.rol] || kullanici.rol}
-              </div>
-            </div>
-            <button className="btn btn-ghost btn-sm" onClick={cikisYap} title="Çıkış Yap"
-              style={{ padding: '5px 7px' }}>
-              <LogOut size={14} />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="page-content">
-        {AktifEkran ? <AktifEkran /> : (
-          <div className="empty-state">
-            <p>Erişim yetkiniz yok</p>
-          </div>
-        )}
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <Sidebar aktif={aktif} setAktif={setAktif} kullanici={kullanici} cikisYap={cikisYap} />
+      <main style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--bg)' }}>
+        {AktifEkran ? <AktifEkran /> : <div className="empty-state"><p>Erişim yetkiniz yok</p></div>}
       </main>
     </div>
   )
@@ -233,11 +248,8 @@ export default function App() {
   return (
     <AuthProvider>
       <IzinProvider>
-      <Toaster position="bottom-right" toastOptions={{
-        duration: 3000,
-        style: { fontFamily: 'Inter, sans-serif', fontSize: 13 }
-      }} />
-      <AppInner />
+        <Toaster position="bottom-right" toastOptions={{ duration: 3000, style: { fontFamily: 'Inter, sans-serif', fontSize: 13 } }} />
+        <AppInner />
       </IzinProvider>
     </AuthProvider>
   )
