@@ -406,3 +406,197 @@ export const realtimeApi = {
     supabase.removeChannel(channel)
   }
 }
+
+// ─── GENİŞLETİLMİŞ RAPORLAR ──────────────────────────────────────────────────
+export const raporlarGelismisApi = {
+
+  // Tarih aralığı özeti
+  async araliklarOzet(baslangic, bitis) {
+    const { data } = await supabase.from('siparisler')
+      .select('genel_toplam, odeme_yontemi, created_at, masa_no, tur')
+      .eq('durum', 'odendi')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+    const toplam = data?.reduce((a, s) => a + (s.genel_toplam || 0), 0) || 0
+    const nakit = data?.filter(s => s.odeme_yontemi?.includes('Nakit')).reduce((a,s) => a+(s.genel_toplam||0), 0) || 0
+    const kart  = data?.filter(s => s.odeme_yontemi?.includes('Kredi')).reduce((a,s) => a+(s.genel_toplam||0), 0) || 0
+    const online = data?.filter(s => s.odeme_yontemi?.includes('Online')).reduce((a,s) => a+(s.genel_toplam||0), 0) || 0
+    const paket = data?.filter(s => s.tur === 'paket').reduce((a,s) => a+(s.genel_toplam||0), 0) || 0
+    return {
+      toplam: +toplam.toFixed(2), siparisSayisi: data?.length || 0,
+      ort: data?.length ? +(toplam/data.length).toFixed(2) : 0,
+      nakit: +nakit.toFixed(2), kart: +kart.toFixed(2),
+      online: +online.toFixed(2), paket: +paket.toFixed(2),
+      masa: +(toplam-paket).toFixed(2)
+    }
+  },
+
+  // Saatlik ciro (düzeltilmiş — odeme_zamani veya created_at)
+  async saatlikCiroGelismis(tarih) {
+    const gun = tarih ? new Date(tarih) : new Date()
+    gun.setHours(0,0,0,0)
+    const ertesi = new Date(gun); ertesi.setDate(ertesi.getDate()+1)
+    const { data } = await supabase.from('siparisler')
+      .select('genel_toplam, created_at')
+      .eq('durum', 'odendi')
+      .gte('created_at', gun.toISOString())
+      .lt('created_at', ertesi.toISOString())
+    const saatler = {}
+    for (let h = 8; h <= 23; h++) saatler[h] = 0
+    ;(data || []).forEach(s => {
+      const h = new Date(s.created_at).getHours()
+      if (saatler[h] !== undefined) saatler[h] += s.genel_toplam || 0
+    })
+    return Object.entries(saatler).map(([saat, ciro]) => ({ saat: +saat, ciro: +ciro.toFixed(2) }))
+  },
+
+  // Haftalık / aylık trend (son N gün)
+  async gunlukTrend(gunSayisi = 14) {
+    const bitis = new Date(); bitis.setHours(23,59,59,999)
+    const baslangic = new Date(); baslangic.setDate(baslangic.getDate() - gunSayisi + 1); baslangic.setHours(0,0,0,0)
+    const { data } = await supabase.from('siparisler')
+      .select('genel_toplam, created_at')
+      .eq('durum', 'odendi')
+      .gte('created_at', baslangic.toISOString())
+      .lte('created_at', bitis.toISOString())
+    const gunler = {}
+    for (let i = 0; i < gunSayisi; i++) {
+      const d = new Date(baslangic); d.setDate(d.getDate()+i)
+      const key = d.toISOString().split('T')[0]
+      gunler[key] = { tarih: key, ciro: 0, siparis: 0 }
+    }
+    ;(data || []).forEach(s => {
+      const key = new Date(s.created_at).toISOString().split('T')[0]
+      if (gunler[key]) { gunler[key].ciro += s.genel_toplam||0; gunler[key].siparis++ }
+    })
+    return Object.values(gunler).map(g => ({ ...g, ciro: +g.ciro.toFixed(2) }))
+  },
+
+  // Kategori bazlı satış analizi
+  async kategoriBazliSatis(baslangic, bitis) {
+    const { data } = await supabase.from('siparis_kalemleri')
+      .select('urun_ad, urun_fiyat, adet, urunler(kategoriler(ad, emoji)), siparisler!inner(created_at, durum)')
+      .eq('siparisler.durum', 'odendi')
+      .gte('siparisler.created_at', baslangic)
+      .lt('siparisler.created_at', bitis)
+    const kategoriler = {}
+    ;(data || []).forEach(k => {
+      const kat = k.urunler?.kategoriler?.ad || 'Diğer'
+      const emoji = k.urunler?.kategoriler?.emoji || '🍽️'
+      if (!kategoriler[kat]) kategoriler[kat] = { ad: kat, emoji, toplam: 0, adet: 0 }
+      kategoriler[kat].toplam += k.urun_fiyat * k.adet
+      kategoriler[kat].adet += k.adet
+    })
+    return Object.values(kategoriler).sort((a,b) => b.toplam - a.toplam)
+  },
+
+  // En çok satan ürünler (tarih aralıklı)
+  async topSatanGelismis(baslangic, bitis, limit = 15) {
+    const { data } = await supabase.from('siparis_kalemleri')
+      .select('urun_ad, urun_fiyat, adet, siparisler!inner(created_at, durum)')
+      .eq('siparisler.durum', 'odendi')
+      .gte('siparisler.created_at', baslangic)
+      .lt('siparisler.created_at', bitis)
+    const grup = {}
+    ;(data || []).forEach(k => {
+      if (!grup[k.urun_ad]) grup[k.urun_ad] = { ad: k.urun_ad, adet: 0, toplam: 0 }
+      grup[k.urun_ad].adet += k.adet
+      grup[k.urun_ad].toplam += k.urun_fiyat * k.adet
+    })
+    return Object.values(grup).sort((a,b) => b.adet - a.adet).slice(0, limit)
+  },
+
+  // İade raporu
+  async iadeRaporu(baslangic, bitis) {
+    const { data } = await supabase.from('stok_hareketleri')
+      .select('*')
+      .eq('hareket_tipi', 'iade')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+      .order('created_at', { ascending: false })
+    return data || []
+  },
+
+  // Masa transfer / birleştirme logları
+  async islemLoglari(baslangic, bitis) {
+    const { data } = await supabase.from('pin_override_log')
+      .select('*, kullanicilar!yapan_kullanici_id(ad_soyad, kullanici_adi), onaylayan:kullanicilar!onaylayan_kullanici_id(ad_soyad)')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+      .order('created_at', { ascending: false })
+    return data || []
+  },
+
+  // Tüm sipariş hareketleri (genel log)
+  async siparisLog(baslangic, bitis) {
+    const { data } = await supabase.from('siparisler')
+      .select('id, masa_no, durum, genel_toplam, odeme_yontemi, tur, created_at')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+      .order('created_at', { ascending: false })
+      .limit(500)
+    return data || []
+  },
+
+  // Stok durum raporu
+  async stokDurum() {
+    const { data } = await supabase.from('hammaddeler')
+      .select('*').eq('aktif', true).order('stok_miktari')
+    return (data || []).map(h => ({
+      ...h,
+      stokDeger: +(h.stok_miktari * h.maliyet_fiyat).toFixed(2),
+      kritik: h.stok_miktari <= h.min_stok && h.min_stok > 0
+    }))
+  },
+
+  // Stok hareket raporu
+  async stokHareketRaporu(baslangic, bitis) {
+    const { data } = await supabase.from('stok_hareketleri')
+      .select('*, hammaddeler(ad, birim, maliyet_fiyat)')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+      .order('created_at', { ascending: false })
+    return data || []
+  },
+
+  // Fatura özeti
+  async faturaOzeti(baslangic, bitis) {
+    const { data } = await supabase.from('faturalar')
+      .select('*, fatura_kalemleri(count)')
+      .gte('tarih', baslangic.split('T')[0]).lte('tarih', bitis.split('T')[0])
+      .order('tarih', { ascending: false })
+    const toplam = (data||[]).reduce((a,f) => a+(f.genel_toplam||0), 0)
+    const odenmemis = (data||[]).filter(f=>f.durum==='odenmedi').reduce((a,f) => a+(f.genel_toplam||0), 0)
+    return { faturalar: data||[], toplam, odenmemis }
+  },
+
+  // Masa performansı
+  async masaPerformans(baslangic, bitis) {
+    const { data } = await supabase.from('siparisler')
+      .select('masa_no, genel_toplam, created_at')
+      .eq('durum', 'odendi').not('masa_no', 'like', 'YS-%').not('masa_no', 'like', 'GT-%')
+      .not('masa_no', 'like', 'TY-%').not('masa_no', 'like', 'MY-%')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+    const masalar = {}
+    ;(data||[]).forEach(s => {
+      const masaNo = s.masa_no?.split(' ·')[0] || s.masa_no
+      if (!masalar[masaNo]) masalar[masaNo] = { masaNo, siparis: 0, toplam: 0 }
+      masalar[masaNo].siparis++
+      masalar[masaNo].toplam += s.genel_toplam||0
+    })
+    return Object.values(masalar)
+      .map(m => ({ ...m, ort: +(m.toplam/m.siparis).toFixed(2), toplam: +m.toplam.toFixed(2) }))
+      .sort((a,b) => b.toplam - a.toplam)
+  },
+
+  // Platform karşılaştırması
+  async platformKarsilastirma(baslangic, bitis) {
+    const { data } = await supabase.from('platform_siparisler')
+      .select('platform, siparis_tutari, durum, created_at')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+    const platformlar = {}
+    ;(data||[]).forEach(s => {
+      if (!platformlar[s.platform]) platformlar[s.platform] = { platform: s.platform, siparis: 0, toplam: 0, teslim: 0, iptal: 0 }
+      platformlar[s.platform].siparis++
+      platformlar[s.platform].toplam += s.siparis_tutari||0
+      if (s.durum === 'DELIVERED') platformlar[s.platform].teslim++
+      if (s.durum === 'CANCELLED') platformlar[s.platform].iptal++
+    })
+    return Object.values(platformlar)
+  }
+}
