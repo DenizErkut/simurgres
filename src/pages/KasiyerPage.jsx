@@ -188,13 +188,13 @@ function AlmanUsulModal({ siparis, genel, onOde, onKapat, izinliOdemeler }) {
                     {kisiler.map(k => (
                       <td key={k.id} style={{ padding: '4px 6px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'center' }}>
-                          <button className="adet-btn" style={{ width: 18, height: 18, fontSize: 12 }}
+                          <button className="adet-btn" style={{ width: 32, height: 32, fontSize: 16 }}
                             onClick={() => secimDegistir(k.id, u.urun_ad, (k.secimler[u.urun_ad] || 0) - 1)}
                             disabled={k.odendi}>−</button>
-                          <span style={{ fontSize: 12, minWidth: 16, textAlign: 'center', fontWeight: 500 }}>
+                          <span style={{ fontSize: 14, minWidth: 22, textAlign: 'center', fontWeight: 600 }}>
                             {k.secimler[u.urun_ad] || 0}
                           </span>
-                          <button className="adet-btn" style={{ width: 18, height: 18, fontSize: 12 }}
+                          <button className="adet-btn" style={{ width: 32, height: 32, fontSize: 16 }}
                             onClick={() => secimDegistir(k.id, u.urun_ad, (k.secimler[u.urun_ad] || 0) + 1)}
                             disabled={k.odendi || kalanAdet(u) <= 0}>+</button>
                         </div>
@@ -213,47 +213,59 @@ function AlmanUsulModal({ siparis, genel, onOde, onKapat, izinliOdemeler }) {
         </div>
 
         {/* Kişi ödemeleri */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text2)' }}>Kişi Ödemeleri</div>
           {kisiler.map(k => {
             const toplam = kisiToplam(k)
             return (
               <div key={k.id} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 12px', borderRadius: 'var(--radius)',
-                border: k.odendi ? '1.5px solid var(--green)' : '0.5px solid var(--border)',
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '14px 14px', borderRadius: 'var(--radius)',
+                border: k.odendi ? '2px solid var(--green)' : '1px solid var(--border)',
                 background: k.odendi ? 'var(--green-light)' : 'var(--surface2)',
-                opacity: toplam === 0 ? .5 : 1
+                opacity: toplam === 0 ? .5 : 1, flexWrap: 'wrap'
               }}>
                 <input value={k.ad} onChange={e => setKisiler(p => p.map(x => x.id === k.id ? { ...x, ad: e.target.value } : x))}
-                  style={{ width: 90, padding: '3px 6px', fontSize: 12, background: 'transparent', border: '0.5px solid var(--border-md)', borderRadius: 4 }}
+                  style={{ width: 100, padding: '8px 10px', fontSize: 13, background: 'transparent', border: '1px solid var(--border-md)', borderRadius: 6 }}
                   disabled={k.odendi} />
                 <select value={k.yontem} onChange={e => setKisiler(p => p.map(x => x.id === k.id ? { ...x, yontem: e.target.value } : x))}
-                  style={{ width: 110, padding: '3px 6px', fontSize: 12 }} disabled={k.odendi}>
+                  style={{ width: 130, padding: '8px 10px', fontSize: 13 }} disabled={k.odendi}>
                   {izinliOdemeler.map(o => <option key={o.label}>{o.label}</option>)}
                 </select>
-                <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: k.odendi ? '#085041' : 'var(--accent)', textAlign: 'right' }}>
+                <div style={{ flex: 1, fontSize: 16, fontWeight: 700, color: k.odendi ? '#085041' : 'var(--accent)', textAlign: 'right', minWidth: 80 }}>
                   ₺{toplam.toFixed(2)}
                 </div>
                 {!k.odendi ? (
                   <>
-                    <button className="btn btn-success btn-sm" onClick={() => kisiOde(k.id)} disabled={toplam === 0}>
-                      <CheckCircle size={12} /> Ödedi
+                    <button onClick={() => kisiOde(k.id)} disabled={toplam === 0}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '10px 18px', borderRadius: 8, border: 'none',
+                        background: toplam === 0 ? 'var(--surface)' : 'var(--green)',
+                        color: '#fff', fontWeight: 600, fontSize: 14,
+                        cursor: toplam === 0 ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        touchAction: 'manipulation'
+                      }}>
+                      <CheckCircle size={15} /> Ödedi
                     </button>
                     {kisiler.length > 1 && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => kisiSil(k.id)}>
-                        <Trash2 size={11} />
+                      <button onClick={() => kisiSil(k.id)}
+                        style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--red)', fontFamily: 'inherit' }}>
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </>
                 ) : (
-                  <span style={{ fontSize: 12, color: '#085041', fontWeight: 500 }}>✓ Ödendi</span>
+                  <span style={{ fontSize: 13, color: '#085041', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle size={14} /> Ödendi
+                  </span>
                 )}
               </div>
             )
           })}
-          <button className="btn btn-ghost btn-sm" onClick={kisiEkle} style={{ width: '100%' }}>
-            <Plus size={12} /> Kişi Ekle
+          <button className="btn btn-ghost" onClick={kisiEkle} style={{ width: '100%', padding: '10px 0', fontSize: 13 }}>
+            <Plus size={14} /> Kişi Ekle
           </button>
         </div>
 
@@ -437,9 +449,9 @@ function IadeModal({ siparis, onIade, onKapat }) {
                 <div>{k.urun_ad}</div>
                 <div style={{ fontSize: 11, color: 'var(--text2)' }}>₺{k.urun_fiyat} · max {k.adet}</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button className="adet-btn" onClick={() => adetDegistir(k, (seciliKalemler[k.id] || 0) - 1)}>−</button>
-                <span style={{ fontSize: 13, minWidth: 20, textAlign: 'center', fontWeight: 500 }}>{seciliKalemler[k.id] || 0}</span>
+                <span style={{ fontSize: 15, minWidth: 28, textAlign: 'center', fontWeight: 600 }}>{seciliKalemler[k.id] || 0}</span>
                 <button className="adet-btn" onClick={() => adetDegistir(k, (seciliKalemler[k.id] || 0) + 1)}>+</button>
               </div>
               <span style={{ fontSize: 12, fontWeight: 600, minWidth: 56, textAlign: 'right', color: 'var(--red)' }}>
