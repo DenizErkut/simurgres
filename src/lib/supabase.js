@@ -270,18 +270,28 @@ export const siparislerApi = {
   },
 
   async kapat(siparisId, { odemeYontemi, masaId }) {
+    // Önce siparişin var olduğunu doğrula
+    const { data: mevcut } = await supabase
+      .from('siparisler')
+      .select('id, durum, masa_id')
+      .eq('id', siparisId)
+      .single()
+
+    if (!mevcut) throw new Error('Sipariş bulunamadı: ' + siparisId)
+
     const { data, error } = await supabase
       .from('siparisler')
-      .update({
-        durum: 'odendi',
-        odeme_yontemi: odemeYontemi,
-        odeme_zamani: new Date().toISOString()
-      })
+      .update({ durum: 'odendi', odeme_yontemi: odemeYontemi })
       .eq('id', siparisId)
-      .select()
-    if (error) throw new Error('Supabase hatası: ' + error.message)
-    if (!data || data.length === 0) throw new Error('Sipariş güncellenemedi - kayıt bulunamadı')
-    if (masaId) await masalarApi.updateDurum(masaId, 'bos')
+      .select('id, durum')
+
+    if (error) throw new Error('Güncelleme hatası: ' + error.message)
+    if (!data || data.length === 0) throw new Error('Satır güncellenemedi')
+
+    // Masa id'si varsa masayı boşalt
+    const hedefMasaId = masaId || mevcut.masa_id
+    if (hedefMasaId) await masalarApi.updateDurum(hedefMasaId, 'bos')
+
     return data[0]
   },
 
