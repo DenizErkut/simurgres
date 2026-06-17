@@ -380,21 +380,22 @@ export default function GarsonPage() {
                       const adet = sepet.find(s => s.id === u.id)?.adet || 0
                       return (
                         <div key={u.id}
-                          style={{ padding: '10px 10px', borderRadius: 'var(--radius)', border: `1.5px solid ${adet > 0 ? 'var(--accent)' : 'var(--border)'}`, background: adet > 0 ? 'var(--accent-light)' : 'var(--surface2)', cursor: 'pointer', transition: 'all .15s', position: 'relative' }}
+                          onClick={() => urunEkle(u)}
+                          style={{ padding: '10px 10px', borderRadius: 'var(--radius)', border: `1.5px solid ${adet > 0 ? 'var(--accent)' : 'var(--border)'}`, background: adet > 0 ? 'var(--accent-light)' : 'var(--surface2)', cursor: 'pointer', transition: 'all .15s', position: 'relative', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
                           onMouseEnter={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--accent)' }}
                           onMouseLeave={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--border)' }}>
                           {adet > 0 && (
-                            <span style={{ position: 'absolute', top: 6, right: 6, background: 'var(--accent)', color: '#fff', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{adet}</span>
+                            <span style={{ position: 'absolute', top: 6, right: 6, background: 'var(--accent)', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{adet}</span>
                           )}
-                          <div onClick={() => urunEkle(u)}>
-                            <div style={{ fontSize: 13, fontWeight: 500 }}>{u.emoji} {u.ad}</div>
-                            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 3, fontWeight: 600 }}>₺{u.fiyat}</div>
-                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>{u.emoji} {u.ad}</div>
+                          <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 3, fontWeight: 600 }}>₺{u.fiyat}</div>
                           {adet > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                              <button className="adet-btn" style={{ width: 30, height: 30, fontSize: 16 }} onClick={() => adetDegistir(u.id, -1)}>−</button>
-                              <span style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{adet}</span>
-                              <button className="adet-btn" style={{ width: 30, height: 30, fontSize: 16 }} onClick={() => urunEkle(u)}>+</button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
+                              <button className="adet-btn" style={{ width: 34, height: 34, fontSize: 18 }}
+                                onClick={e => { e.stopPropagation(); adetDegistir(u.id, -1) }}>−</button>
+                              <span style={{ flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 16 }}>{adet}</span>
+                              <button className="adet-btn" style={{ width: 34, height: 34, fontSize: 18 }}
+                                onClick={e => { e.stopPropagation(); urunEkle(u) }}>+</button>
                             </div>
                           )}
                         </div>
