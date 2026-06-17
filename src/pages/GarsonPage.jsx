@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { salonlarApi, masalarApi, kategorilerApi, urunlerApi, siparislerApi, realtimeApi } from '../lib/supabase'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { useIzin } from '../contexts/IzinContext'
 import { usePinOnay } from '../contexts/PinOnayContext'
 import toast from 'react-hot-toast'
@@ -158,6 +159,7 @@ export default function GarsonPage() {
   const [sepetNotlar, setSepetNotlar] = useState({}) // id -> not
   const [modal, setModal] = useState(null)
   const { izinVar } = useIzin()
+  const { kullanici } = useAuth()
   const { pinOnayla } = usePinOnay()
 
   const masalariYukle = useCallback(async (salon) => {
@@ -225,7 +227,13 @@ export default function GarsonPage() {
       )
       const masaNo = masaIsim ? `${seciliMasa.no} · ${masaIsim}` : seciliMasa.no
       await siparislerApi.create(
-        { masa_id: seciliMasa.id, masa_no: masaNo, tur: aktifSalon?.ad?.includes('Paket') ? 'paket' : 'masa', toplam, kdv_tutar, genel_toplam },
+        {
+          masa_id: seciliMasa.id, masa_no: masaNo,
+          tur: aktifSalon?.ad?.includes('Paket') ? 'paket' : 'masa',
+          toplam, kdv_tutar, genel_toplam,
+          garson_id: kullanici?.id || null,
+          garson_ad: kullanici?.ad_soyad || kullanici?.kullanici_adi || null
+        },
         sepet.map(s => ({ urun_id: s.id, urun_ad: s.ad, urun_fiyat: s.fiyat, adet: s.adet, notlar: s.not || null }))
       )
       toast.success(`${seciliMasa.no} siparişi mutfağa gönderildi!`)

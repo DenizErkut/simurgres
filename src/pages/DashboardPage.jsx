@@ -65,6 +65,7 @@ function Sekmeler({ aktif, onChange }) {
     { id: 'platform',label: 'Platform' },
     { id: 'stok',    label: 'Stok' },
     { id: 'fatura',  label: 'Faturalar' },
+    { id: 'garson',  label: 'Garson Raporu' },
     { id: 'log',     label: 'İşlem Logu' },
   ]
   return (
@@ -132,6 +133,8 @@ export default function DashboardPage() {
   const [stoklar, setStoklar] = useState([])
   const [faturalar, setFaturalar] = useState(null)
   const [log, setLog] = useState([])
+  const [garsonlar, setGarsonlar] = useState([])
+  const [seciliGarson, setSeciliGarson] = useState(null)
 
   // Tarih aralıkları
   const bugun = new Date(); bugun.setHours(0,0,0,0)
@@ -153,7 +156,7 @@ export default function DashboardPage() {
     setLoading(true)
     const [bas, bit] = tarihAralik()
     try {
-      const [oz, sat, saat, gun, kat, masa, plat, stok, fat, loglar] = await Promise.all([
+      const [oz, sat, saat, gun, kat, masa, plat, stok, fat, loglar, gars] = await Promise.all([
         raporlarGelismisApi.araliklarOzet(bas, bit),
         raporlarGelismisApi.topSatanGelismis(bas, bit),
         raporlarGelismisApi.saatlikCiroGelismis(sekme === 'bugun' ? null : undefined),
@@ -164,10 +167,12 @@ export default function DashboardPage() {
         raporlarGelismisApi.stokDurum(),
         raporlarGelismisApi.faturaOzeti(bas, bit),
         raporlarGelismisApi.siparisLog(bas, bit),
+        raporlarGelismisApi.garsonRaporu(bas, bit),
       ])
       setOzet(oz); setTopSatan(sat); setSaatlik(saat); setGunluk(gun)
       setKategoriler(kat); setMasaPerf(masa); setPlatformlar(plat)
       setStoklar(stok); setFaturalar(fat); setLog(loglar)
+      setGarsonlar(gars); setSeciliGarson(gars[0] || null)
     } catch (e) { toast.error('Rapor hatası: ' + e.message) }
     finally { setLoading(false) }
   }, [tarihAralik, sekme])
@@ -184,6 +189,7 @@ export default function DashboardPage() {
     platform: 'Platform Karşılaştırması',
     stok: 'Stok Durumu',
     fatura: 'Fatura Raporu',
+    garson: 'Garson Bazlı Rapor',
     log: 'İşlem Logu',
   }
 
@@ -201,7 +207,7 @@ export default function DashboardPage() {
       <Sekmeler aktif={sekme} onChange={s => setSekme(s)} />
 
       {/* Özet kartlar — tüm sekmelerde */}
-      {['bugun','hafta','ay','urun','kategori','masa','platform'].includes(sekme) && (
+      {['bugun','hafta','ay','urun','kategori','masa','platform','garson'].includes(sekme) && (
         <OzetKartlar ozet={ozet} />
       )}
 
@@ -479,6 +485,143 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+
+      {/* ── GARSON RAPORU ── */}
+      {sekme === 'garson' && (
+        <div>
+          {garsonlar.length === 0 ? (
+            <div className="empty-state">
+              <BarChart2 size={36} style={{ margin: '0 auto 10px', opacity: .3, display: 'block' }} />
+              <p>Henüz garson bazlı veri yok — siparişlerde garson kaydı tutulmaya başlanmalı</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 12 }}>
+              {/* Sol: Garson listesi */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {garsonlar.map(g => (
+                  <div key={g.id} onClick={() => setSeciliGarson(g)}
+                    className="card-sm" style={{
+                      cursor: 'pointer', padding: '12px 14px',
+                      border: seciliGarson?.id === g.id ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: seciliGarson?.id === g.id ? 'var(--accent-light)' : 'var(--surface)'
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: '50%',
+                        background: 'var(--accent-light)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 15, fontWeight: 700, color: 'var(--accent)', flexShrink: 0
+                      }}>
+                        {g.ad?.charAt(0)?.toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.ad}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text2)' }}>{g.siparisSayisi} sipariş</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)' }}>Ciro</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>{para(g.toplam)}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text3)' }}>Ciro Payı</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: g.pay > 30 ? 'var(--green)' : 'var(--text)' }}>%{g.pay}</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: 'var(--surface2)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', background: 'var(--accent)', width: `${g.pay}%`, borderRadius: 2, transition: 'width .4s' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sağ: Seçili garson detayı */}
+              {seciliGarson && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Özet kartlar */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+                    {[
+                      { label: 'Toplam Ciro', val: para(seciliGarson.toplam), renk: 'var(--accent)' },
+                      { label: 'Sipariş Sayısı', val: seciliGarson.siparisSayisi, renk: '#185FA5' },
+                      { label: 'Ort. Adisyon', val: para(seciliGarson.ort), renk: '#1D9E75' },
+                      { label: 'Ciro Payı', val: `%${seciliGarson.pay}`, renk: '#BA7517' },
+                    ].map(k => (
+                      <div key={k.label} className="stat-kart" style={{ borderLeft: `3px solid ${k.renk}` }}>
+                        <div className="stat-label">{k.label}</div>
+                        <div className="stat-val" style={{ color: k.renk, fontSize: 18 }}>{k.val}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {/* En çok sattığı ürünler */}
+                    <div className="card">
+                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+                        En Çok Sattığı Ürünler
+                      </div>
+                      {seciliGarson.urunler.map((u, i) => (
+                        <div key={u.ad} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '0.5px solid var(--border)' }}>
+                          <span style={{ width: 18, fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>{i+1}</span>
+                          <span style={{ flex: 1, fontSize: 13 }}>{u.ad}</span>
+                          <span style={{ fontSize: 12, color: 'var(--text2)', marginRight: 6 }}>{u.adet}x</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>{para(u.toplam)}</span>
+                        </div>
+                      ))}
+                      {seciliGarson.urunler.length === 0 && <div style={{ color: 'var(--text3)', fontSize: 12 }}>Veri yok</div>}
+                    </div>
+
+                    {/* Kategori dağılımı */}
+                    <div className="card">
+                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+                        Kategori Dağılımı
+                      </div>
+                      {seciliGarson.kategoriler.map((k, i) => {
+                        const renkler = ['#D85A30','#1D9E75','#185FA5','#BA7517','#534AB7','#639922']
+                        const renk = renkler[i % renkler.length]
+                        const pay = seciliGarson.toplam ? (k.toplam / seciliGarson.toplam * 100).toFixed(1) : 0
+                        return (
+                          <div key={k.ad} style={{ marginBottom: 10 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, fontSize: 12 }}>
+                              <span>{k.emoji} {k.ad} <span style={{ color: 'var(--text3)' }}>({k.adet} adet)</span></span>
+                              <span style={{ fontWeight: 600 }}>{para(k.toplam)} <span style={{ color: 'var(--text3)' }}>%{pay}</span></span>
+                            </div>
+                            <div style={{ height: 6, borderRadius: 3, background: 'var(--surface2)', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', borderRadius: 3, background: renk, width: `${pay}%`, transition: 'width .4s' }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {seciliGarson.kategoriler.length === 0 && <div style={{ color: 'var(--text3)', fontSize: 12 }}>Veri yok</div>}
+                    </div>
+                  </div>
+
+                  {/* Saat dağılımı */}
+                  <div className="card">
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Saatlik Sipariş Dağılımı</div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 80 }}>
+                      {seciliGarson.saatDagilim.slice(8, 23).map((adet, i) => {
+                        const maks = Math.max(...seciliGarson.saatDagilim, 1)
+                        return (
+                          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', gap: 3 }}>
+                            <div style={{
+                              width: '80%', height: maks ? (adet/maks)*70 : 0,
+                              background: adet > 0 ? 'var(--accent)' : 'var(--border)',
+                              borderRadius: '2px 2px 0 0', minHeight: adet > 0 ? 3 : 1
+                            }} />
+                            <span style={{ fontSize: 9, color: 'var(--text3)' }}>{i+8}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -585,6 +585,75 @@ export const raporlarGelismisApi = {
   },
 
   // Platform karşılaştırması
+
+  // Garson bazlı satış raporu
+  async garsonRaporu(baslangic, bitis) {
+    // Sipariş bazlı ciro
+    const { data: siparisler } = await supabase.from('siparisler')
+      .select('garson_id, garson_ad, genel_toplam, created_at, masa_no, tur')
+      .eq('durum', 'odendi')
+      .gte('created_at', baslangic).lt('created_at', bitis)
+
+    // Kalem bazlı satış (ürün + kategori detayı)
+    const { data: kalemler } = await supabase.from('siparis_kalemleri')
+      .select('urun_ad, urun_fiyat, adet, urunler(kategori_id, kategoriler(ad,emoji)), siparisler!inner(garson_id, garson_ad, created_at, durum)')
+      .eq('siparisler.durum', 'odendi')
+      .gte('siparisler.created_at', baslangic)
+      .lt('siparisler.created_at', bitis)
+
+    // Garson bazlı gruplama
+    const garsonlar = {}
+
+    // Ciro topla
+    ;(siparisler || []).forEach(s => {
+      const gid = s.garson_id || 'bilinmiyor'
+      const gad = s.garson_ad || 'Bilinmiyor'
+      if (!garsonlar[gid]) {
+        garsonlar[gid] = {
+          id: gid, ad: gad,
+          siparisSayisi: 0, toplam: 0,
+          urunler: {}, kategoriler: {},
+          saatDagilim: Array(24).fill(0)
+        }
+      }
+      garsonlar[gid].siparisSayisi++
+      garsonlar[gid].toplam += s.genel_toplam || 0
+      const saat = new Date(s.created_at).getHours()
+      garsonlar[gid].saatDagilim[saat]++
+    })
+
+    // Ürün & kategori topla
+    ;(kalemler || []).forEach(k => {
+      const gid = k.siparisler?.garson_id || 'bilinmiyor'
+      const gad = k.siparisler?.garson_ad || 'Bilinmiyor'
+      if (!garsonlar[gid]) {
+        garsonlar[gid] = { id: gid, ad: gad, siparisSayisi: 0, toplam: 0, urunler: {}, kategoriler: {}, saatDagilim: Array(24).fill(0) }
+      }
+      const g = garsonlar[gid]
+      // Ürün
+      if (!g.urunler[k.urun_ad]) g.urunler[k.urun_ad] = { ad: k.urun_ad, adet: 0, toplam: 0 }
+      g.urunler[k.urun_ad].adet += k.adet || 1
+      g.urunler[k.urun_ad].toplam += (k.urun_fiyat || 0) * (k.adet || 1)
+      // Kategori
+      const kat = k.urunler?.kategoriler?.ad || 'Diğer'
+      const emoji = k.urunler?.kategoriler?.emoji || '🍽️'
+      if (!g.kategoriler[kat]) g.kategoriler[kat] = { ad: kat, emoji, adet: 0, toplam: 0 }
+      g.kategoriler[kat].adet += k.adet || 1
+      g.kategoriler[kat].toplam += (k.urun_fiyat || 0) * (k.adet || 1)
+    })
+
+    // Normalize et
+    const genelToplam = Object.values(garsonlar).reduce((a, g) => a + g.toplam, 0)
+    return Object.values(garsonlar).map(g => ({
+      ...g,
+      toplam: +g.toplam.toFixed(2),
+      ort: g.siparisSayisi ? +(g.toplam / g.siparisSayisi).toFixed(2) : 0,
+      pay: genelToplam ? +((g.toplam / genelToplam) * 100).toFixed(1) : 0,
+      urunler: Object.values(g.urunler).sort((a, b) => b.adet - a.adet).slice(0, 10),
+      kategoriler: Object.values(g.kategoriler).sort((a, b) => b.toplam - a.toplam)
+    })).sort((a, b) => b.toplam - a.toplam)
+  },
+
   async platformKarsilastirma(baslangic, bitis) {
     const { data } = await supabase.from('platform_siparisler')
       .select('platform, siparis_tutari, durum, created_at')
