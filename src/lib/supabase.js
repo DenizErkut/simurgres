@@ -270,7 +270,7 @@ export const siparislerApi = {
   },
 
   async kapat(siparisId, { odemeYontemi, masaId }) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('siparisler')
       .update({
         durum: 'odendi',
@@ -278,8 +278,11 @@ export const siparislerApi = {
         odeme_zamani: new Date().toISOString()
       })
       .eq('id', siparisId)
-    if (error) throw error
+      .select()
+    if (error) throw new Error('Supabase hatası: ' + error.message)
+    if (!data || data.length === 0) throw new Error('Sipariş güncellenemedi - kayıt bulunamadı')
     if (masaId) await masalarApi.updateDurum(masaId, 'bos')
+    return data[0]
   },
 
   async toplamHesapla(kalemler) {

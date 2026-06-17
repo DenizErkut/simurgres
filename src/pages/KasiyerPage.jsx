@@ -521,7 +521,6 @@ export default function KasiyerPage() {
     if (!secili) return
     setOdemeYapiliyor(true)
     try {
-      // Bölünmüş / Alman usulü ödemelerde ilk yöntemi ana kaydet, diğerleri not olarak
       const anaYontem = Array.isArray(odemeSatirlari)
         ? odemeSatirlari.map(s => `${s.yontem} ₺${s.tutar.toFixed(2)}`).join(' + ')
         : odemeYontemi
@@ -530,7 +529,10 @@ export default function KasiyerPage() {
       toast.success(`${secili.masa_no} hesabı kapatıldı`)
       setSecili(null); setIndirim(null); setModal(null)
       await yukle()
-    } catch { toast.error('Hesap kapatılamadı') }
+    } catch (e) {
+      console.error('Hesap kapatma hatası:', e)
+      toast.error('Hesap kapatılamadı: ' + (e.message || JSON.stringify(e)))
+    }
     finally { setOdemeYapiliyor(false) }
   }
 
