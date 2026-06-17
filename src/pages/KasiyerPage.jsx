@@ -139,8 +139,16 @@ function AlmanUsulModal({ siparis, genel, onOde, onKapat, izinliOdemeler }) {
   }
 
   const hepsiniTamamla = () => {
-    // Her kişinin ödemesini toplu bildir
-    const odemeler = kisiler.map(k => ({ yontem: k.yontem, tutar: kisiToplam(k) }))
+    // Sadece ödendi işaretlenenler + toplamı sıfır olmayanlar
+    const odemeler = kisiler
+      .filter(k => k.odendi && kisiToplam(k) > 0)
+      .map(k => ({ yontem: k.yontem, tutar: kisiToplam(k) }))
+    
+    // Ödenmemiş kişiler varsa onları da varsayılan yöntemle ekle
+    kisiler.filter(k => !k.odendi && kisiToplam(k) > 0).forEach(k => {
+      odemeler.push({ yontem: k.yontem, tutar: kisiToplam(k) })
+    })
+    
     onOde(odemeler)
   }
 
@@ -280,9 +288,12 @@ function AlmanUsulModal({ siparis, genel, onOde, onKapat, izinliOdemeler }) {
 
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onKapat}>İptal</button>
-          <button className="btn btn-primary" disabled={!hepsiOdedi}
-            onClick={hepsiniTamamla}>
-            <CheckCircle size={13} /> Hesabı Kapat
+          <button className="btn btn-primary"
+            disabled={toplamOdenen === 0 && !hepsiOdedi}
+            onClick={hepsiniTamamla}
+            style={{ opacity: hepsiOdedi ? 1 : 0.8 }}>
+            <CheckCircle size={13} />
+            {hepsiOdedi ? 'Hesabı Kapat' : `Hesabı Kapat (₺${(genel - toplamOdenen).toFixed(2)} kalan)`}
           </button>
         </div>
       </div>
