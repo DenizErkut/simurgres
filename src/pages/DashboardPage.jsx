@@ -4,8 +4,13 @@ import toast from 'react-hot-toast'
 import {
   TrendingUp, ShoppingBag, Receipt, CreditCard, BarChart2,
   Package, FileText, RefreshCw, ChevronDown, AlertTriangle,
-  ArrowUpRight, ArrowDownRight, Truck, Star
+  ArrowUpRight, ArrowDownRight, Truck, Star, Download
 } from 'lucide-react'
+import {
+  exportGunlukPDF, exportGarsonPDF, exportStokPDF,
+  exportGunlukExcel, exportGarsonExcel, exportStokExcel,
+  exportLogExcel, exportCSV, exportWordRapor
+} from '../lib/exportRapor'
 
 // ─── YARDIMCI ────────────────────────────────────────────────────────────────
 const para = (v) => `₺${(v||0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -135,6 +140,7 @@ export default function DashboardPage() {
   const [log, setLog] = useState([])
   const [garsonlar, setGarsonlar] = useState([])
   const [seciliGarson, setSeciliGarson] = useState(null)
+  const [exportMenu, setExportMenu] = useState(false)
 
   // Tarih aralıkları
   const bugun = new Date(); bugun.setHours(0,0,0,0)
@@ -198,10 +204,52 @@ export default function DashboardPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <span style={{ fontSize: 15, fontWeight: 600 }}>{baslik[sekme] || 'Raporlar'}</span>
-        <button className="btn btn-ghost btn-sm" onClick={yukle} disabled={loading}>
-          <RefreshCw size={13} style={{ animation: loading ? 'spin .6s linear infinite' : 'none' }} />
-          {loading ? 'Yükleniyor...' : 'Yenile'}
-        </button>
+        <div style={{ display: 'flex', gap: 6, position: 'relative' }}>
+          <button className="btn btn-ghost btn-sm" onClick={yukle} disabled={loading}>
+            <RefreshCw size={13} style={{ animation: loading ? 'spin .6s linear infinite' : 'none' }} />
+            {loading ? 'Yükleniyor...' : 'Yenile'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setExportMenu(a => !a)}>
+            <Download size={13} /> Export
+          </button>
+          {exportMenu && (
+            <div onClick={() => setExportMenu(false)} style={{
+              position: 'fixed', inset: 0, zIndex: 40
+            }} />
+          )}
+          {exportMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4,
+              background: 'var(--surface)', border: '0.5px solid var(--border)',
+              borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)',
+              zIndex: 50, minWidth: 220, overflow: 'hidden'
+            }}>
+              {[
+                { label: '📄 PDF — Günlük Rapor', fn: () => exportGunlukPDF(ozet, topSatan, saatlik, baslik[sekme]) },
+                { label: '📊 Excel — Günlük Rapor', fn: () => exportGunlukExcel(ozet, topSatan, saatlik, gunluk, baslik[sekme]) },
+                { label: '👤 PDF — Garson Raporu', fn: () => exportGarsonPDF(garsonlar, baslik[sekme]) },
+                { label: '👤 Excel — Garson Raporu', fn: () => exportGarsonExcel(garsonlar) },
+                { label: '📦 PDF — Stok Raporu', fn: () => exportStokPDF(stoklar) },
+                { label: '📦 Excel — Stok Raporu', fn: () => exportStokExcel(stoklar) },
+                { label: '📋 Excel — İşlem Logu', fn: () => exportLogExcel(log) },
+                { label: '📋 CSV — İşlem Logu', fn: () => exportCSV(['Tarih','Masa','Tur','Tutar','Odeme','Durum'], log.map(s => [new Date(s.created_at).toLocaleString('tr-TR'), s.masa_no, s.tur, s.genel_toplam, s.odeme_yontemi||'-', s.durum]), 'Islem_Logu') },
+                { label: '📝 Word — Özet Rapor', fn: () => exportWordRapor(ozet, topSatan, garsonlar, baslik[sekme]) },
+              ].map(item => (
+                <button key={item.label} onClick={() => { item.fn(); setExportMenu(false) }}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '10px 14px', background: 'none', border: 'none',
+                    cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+                    color: 'var(--text)', borderBottom: '0.5px solid var(--border)'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <Sekmeler aktif={sekme} onChange={s => setSekme(s)} />
