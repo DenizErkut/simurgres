@@ -179,26 +179,38 @@ function Sidebar({ aktif, setAktif, kullanici }) {
       </div>
 
       {/* Kullanıcı alanı */}
-      <div style={{ padding: '10px 12px', borderTop: '0.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: '50%', background: 'var(--accent-light)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 600, color: 'var(--accent)', flexShrink: 0
-        }}>
-          {kullanici.ad_soyad?.charAt(0)?.toUpperCase() || '?'}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {kullanici.ad_soyad}
+      <div style={{ borderTop: '0.5px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%', background: 'var(--accent-light)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 600, color: 'var(--accent)', flexShrink: 0
+          }}>
+            {kullanici.ad_soyad?.charAt(0)?.toUpperCase() || '?'}
           </div>
-          <div style={{ fontSize: 11, color: ROL_RENK[kullanici.rol] }}>{ROL_ETIKET[kullanici.rol]}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {kullanici.ad_soyad}
+            </div>
+            <div style={{ fontSize: 11, color: ROL_RENK[kullanici.rol] }}>{ROL_ETIKET[kullanici.rol]}</div>
+          </div>
+          <Clock />
         </div>
-        <Clock />
-        <button className="btn btn-ghost btn-sm" 
-          onClick={() => { if(window.confirm('Çıkış yapmak istiyor musunuz?')) cikisYap() }} 
-          title="Çıkış Yap" style={{ padding: '4px 6px', flexShrink: 0 }}>
-          <i className="ti ti-logout" style={{ fontSize: 15 }} aria-hidden="true" />
-        </button>
+        <div style={{ padding: '0 8px 8px' }}>
+          <button
+            onClick={() => { if(window.confirm('Çıkış yapmak istiyor musunuz?')) cikisYap() }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '7px 0', borderRadius: 6, border: '0.5px solid var(--border-md)',
+              background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 12, color: 'var(--text2)', transition: 'all .12s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-light)'; e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--red)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)'; e.currentTarget.style.borderColor = 'var(--border-md)' }}>
+            <i className="ti ti-logout" style={{ fontSize: 14 }} aria-hidden="true" />
+            Çıkış Yap
+          </button>
+        </div>
       </div>
     </div>
   )
