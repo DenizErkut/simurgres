@@ -319,7 +319,7 @@ export default function GarsonPage() {
   if (loading) return <div className="loading-center"><div className="spinner" /><span>Yükleniyor...</span></div>
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 720px', gap: 12, height: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, height: '100%' }}>
       {/* SOL: MASALAR */}
       <div>
         <div className="pill-tabs" style={{ marginBottom: 12 }}>
