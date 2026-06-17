@@ -94,8 +94,9 @@ function Clock() {
   return <span style={{ fontSize: 12, color: 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>{saat}</span>
 }
 
-function Sidebar({ aktif, setAktif, kullanici, cikisYap }) {
+function Sidebar({ aktif, setAktif, kullanici }) {
   const { izinVar } = useIzin()
+  const { cikisYap } = useAuth()
   const [acikGruplar, setAcikGruplar] = useState({ Raporlar: true, Menü: true, Stok: false, Sistem: false })
 
   const grupToggle = (grup) => setAcikGruplar(p => ({ ...p, [grup]: !p[grup] }))
@@ -238,7 +239,7 @@ function AppInner() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar aktif={aktif} setAktif={setAktif} kullanici={kullanici} cikisYap={cikisYap} />
+      <Sidebar aktif={aktif} setAktif={setAktif} kullanici={kullanici} />
       <main style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--bg)' }}>
         {AktifEkran ? <AktifEkran /> : <div className="empty-state"><p>Erişim yetkiniz yok</p></div>}
       </main>
