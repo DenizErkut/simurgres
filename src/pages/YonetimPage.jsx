@@ -203,7 +203,8 @@ function MasaYonetimi() {
             {masalar.map(m => (
               <div key={m.id} className="card-sm" style={{
                 opacity: m.aktif ? 1 : .45,
-                borderLeft: m.durum === 'dolu' ? '3px solid var(--amber)' : '3px solid var(--border)'
+                borderLeft: m.renk ? `4px solid ${m.renk}` : m.durum === 'dolu' ? '3px solid var(--amber)' : '3px solid var(--border)',
+                borderTop: m.renk ? `2px solid ${m.renk}20` : undefined
               }}>
                 {duzenle === m.id ? (
                   <input defaultValue={m.no} autoFocus
@@ -213,10 +214,23 @@ function MasaYonetimi() {
                 ) : (
                   <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{m.no}</div>
                 )}
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>
                   {m.kapasite} kişilik · <span style={{ color: m.durum === 'dolu' ? 'var(--amber)' : 'var(--green)' }}>
                     {m.durum === 'dolu' ? 'Dolu' : 'Boş'}
                   </span>
+                </div>
+                {/* Renk seçici */}
+                <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 6 }}>
+                  {[null,'#D85A30','#1D9E75','#185FA5','#BA7517','#534AB7','#639922','#E4002B','#f27a1a','#888780'].map((renk, i) => (
+                    <div key={i} onClick={() => masaGuncelle(m.id, { renk })}
+                      title={renk || 'Renk yok'}
+                      style={{
+                        width: 16, height: 16, borderRadius: 3, cursor: 'pointer',
+                        background: renk || 'var(--surface2)',
+                        border: m.renk === renk ? '2px solid var(--text)' : '1px solid var(--border)',
+                        flexShrink: 0
+                      }} />
+                  ))}
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button className="btn btn-ghost btn-sm" style={{ flex: 1, padding: '4px 0' }}

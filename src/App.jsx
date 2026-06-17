@@ -19,6 +19,7 @@ import YaziciPage from './pages/YaziciPage'
 import YaziciYonlendirmePage from './pages/YaziciYonlendirmePage'
 import FaturaPage from './pages/FaturaPage'
 import StokPage from './pages/StokPage'
+import ZRaporuPage from './pages/ZRaporuPage'
 import RecetePage from './pages/RecetePage'
 import { PinOnayProvider } from './contexts/PinOnayContext'
 import './index.css'
@@ -53,6 +54,7 @@ const NAV = [
     izin: 'rapor_gunluk',
     items: [
       { id: 'rapor', label: 'Günlük Rapor', icon: 'ti-chart-bar', component: DashboardPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB', izin: 'rapor_gunluk' },
+      { id: 'z_raporu', label: 'Z Raporu', icon: 'ti-file-invoice', component: ZRaporuPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#D85A30', bg: '#FAECE7', izin: 'rapor_gunluk' },
     ]
   },
   {
