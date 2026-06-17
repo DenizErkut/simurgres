@@ -172,11 +172,11 @@ async function migrosSimurgResSiparisOlustur(payload, platformSiparisId, items) 
     durum: 'bekliyor'
   }))
   const toplam = kalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
-  const kdv_tutar = +(toplam * 0.1).toFixed(2)
+  const kdv_tutar = +(toplam * 10 / 110).toFixed(2)  // iç KDV
   const { data: siparis } = await supabase.from('siparisler').insert({
     masa_no: masaNo, tur: 'paket', durum: 'acik',
     notlar: payload.note || null, toplam, kdv_tutar,
-    genel_toplam: +(toplam + kdv_tutar).toFixed(2)
+    genel_toplam: +(toplam)  // KDV dahil
   }).select().single()
   if (siparis) {
     await supabase.from('siparis_kalemleri').insert(kalemler.map(k => ({ ...k, siparis_id: siparis.id })))

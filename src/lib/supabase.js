@@ -217,7 +217,7 @@ export const siparislerApi = {
       .eq('siparis_id', hedefSiparis.id)
     if (tumKalemler) {
       const toplam = tumKalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
-      const kdv_tutar = +(toplam * 0.1).toFixed(2)
+      const kdv_tutar = +(toplam * 10 / 110).toFixed(2)  // iç KDV (fiyatlar zaten KDV dahil)
       await supabase.from('siparisler').update({
         toplam, kdv_tutar, genel_toplam: +(toplam + kdv_tutar).toFixed(2)
       }).eq('id', hedefSiparis.id)
@@ -297,8 +297,9 @@ export const siparislerApi = {
 
   async toplamHesapla(kalemler) {
     const toplam = kalemler.reduce((acc, k) => acc + k.urun_fiyat * k.adet, 0)
-    const kdv = +(toplam * 0.1).toFixed(2)
-    return { toplam, kdv_tutar: kdv, genel_toplam: +(toplam + kdv).toFixed(2) }
+    // Fiyatlar KDV dahil — iç KDV hesabı (sadece fiş/rapor için)
+    const kdv_tutar = +(toplam * 10 / 110).toFixed(2)
+    return { toplam, kdv_tutar, genel_toplam: toplam }
   }
 }
 

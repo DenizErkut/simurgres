@@ -207,7 +207,7 @@ async function simurgResSiparisOlustur(ysOrder, platformSiparisId) {
   }))
 
   const toplam = kalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
-  const kdv_tutar = +(toplam * 0.1).toFixed(2)
+  const kdv_tutar = +(toplam * 10 / 110).toFixed(2)  // iç KDV
 
   const { data: siparis } = await supabase.from('siparisler').insert({
     masa_id: masaId,
@@ -217,7 +217,7 @@ async function simurgResSiparisOlustur(ysOrder, platformSiparisId) {
     notlar: ysOrder.comment,
     toplam,
     kdv_tutar,
-    genel_toplam: +(toplam + kdv_tutar).toFixed(2)
+    genel_toplam: +(toplam)  // KDV dahil
   }).select().single()
 
   if (siparis) {

@@ -525,10 +525,10 @@ export default function KasiyerPage() {
     const { data: kalanlar } = await supabase.from('siparis_kalemleri')
       .select('urun_fiyat, adet').eq('siparis_id', siparis.id)
     const yeniToplam = (kalanlar || []).reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
-    const yeniKdv = +(yeniToplam * 0.1).toFixed(2)
+    const yeniKdv = +(yeniToplam * 10 / 110).toFixed(2)  // iç KDV
     await supabase.from('siparisler').update({
       toplam: yeniToplam, kdv_tutar: yeniKdv,
-      genel_toplam: +(yeniToplam + yeniKdv).toFixed(2)
+      genel_toplam: yeniToplam  // KDV dahil fiyat = genel toplam
     }).eq('id', siparis.id)
     // Siparişleri yenile ama masayı kapatma
     const guncellenmis = await siparislerApi.getAcikSiparisler()
@@ -598,8 +598,8 @@ export default function KasiyerPage() {
         setModal(null); setSecili(null); setIndirim(null); await yukle(); return
       }
       const yeniToplam = kalanKalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
-      const yeniKdv = +(yeniToplam * 0.1).toFixed(2)
-      await supabase.from('siparisler').update({ toplam: yeniToplam, kdv_tutar: yeniKdv, genel_toplam: +(yeniToplam + yeniKdv).toFixed(2) }).eq('id', secili.id)
+      const yeniKdv = +(yeniToplam * 10 / 110).toFixed(2)  // iç KDV
+      await supabase.from('siparisler').update({ toplam: yeniToplam, kdv_tutar: yeniKdv, genel_toplam: yeniToplam }).eq('id', secili.id)
       toast.success(`₺${tutar.toFixed(2)} iade yapıldı`)
       setModal(null); setIndirim(null)
       const guncellenmis = await siparislerApi.getAcikSiparisler()
@@ -614,8 +614,8 @@ export default function KasiyerPage() {
   const ara = kalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
   const indirimTutar = indirim ? indirim.hesap : 0
   const indirimliAra = ara - indirimTutar
-  const kdv = +(indirimliAra * 0.1).toFixed(2)
-  const genel = +(indirimliAra + kdv).toFixed(2)
+  const kdv = +(indirimliAra * 10 / 110).toFixed(2)  // iç KDV
+  const genel = indirimliAra  // KDV dahil toplam
 
   const izinliOdemeler = TUM_ODEME.filter(m => !m.izin || izinVar(m.izin))
 
