@@ -130,8 +130,9 @@ function MasaYonetimi() {
   }
 
   const masaGuncelle = async (id, updates) => {
-    await supabase.from('masalar').update(updates).eq('id', id)
-    setDuzenle(null)
+    const { error } = await supabase.from('masalar').update(updates).eq('id', id)
+    if (error) { toast.error('Güncelleme hatası: ' + error.message); return }
+    if (!updates.renk && updates.renk !== null) setDuzenle(null)
     masaYukle()
   }
 
@@ -219,17 +220,22 @@ function MasaYonetimi() {
                     {m.durum === 'dolu' ? 'Dolu' : 'Boş'}
                   </span>
                 </div>
-                {/* Renk seçici */}
-                <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 6 }}>
-                  {[null,'#D85A30','#1D9E75','#185FA5','#BA7517','#534AB7','#639922','#E4002B','#f27a1a','#888780'].map((renk, i) => (
-                    <div key={i} onClick={() => masaGuncelle(m.id, { renk })}
+                {/* Renk seçici — yatay scroll */}
+                <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 3, marginBottom: 6, scrollbarWidth: 'none' }}>
+                  {[null,'#D85A30','#1D9E75','#185FA5','#BA7517','#534AB7','#639922','#E4002B','#f27a1a','#5d3ebc','#888780','#FF6B6B','#4ECDC4','#45B7D1'].map((renk, i) => (
+                    <div key={i}
+                      onClick={e => { e.stopPropagation(); masaGuncelle(m.id, { renk }) }}
                       title={renk || 'Renk yok'}
                       style={{
-                        width: 16, height: 16, borderRadius: 3, cursor: 'pointer',
-                        background: renk || 'var(--surface2)',
-                        border: m.renk === renk ? '2px solid var(--text)' : '1px solid var(--border)',
-                        flexShrink: 0
-                      }} />
+                        width: 18, height: 18, borderRadius: 4, cursor: 'pointer', flexShrink: 0,
+                        background: renk || '#fff',
+                        border: m.renk === renk
+                          ? '2.5px solid #222'
+                          : renk ? '1px solid rgba(0,0,0,.15)' : '1px solid var(--border-md)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                      {!renk && <span style={{ fontSize: 9, color: '#aaa', lineHeight: 1 }}>✕</span>}
+                    </div>
                   ))}
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
