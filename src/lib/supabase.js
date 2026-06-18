@@ -292,6 +292,14 @@ export const siparislerApi = {
     const hedefMasaId = masaId || mevcut.masa_id
     if (hedefMasaId) await masalarApi.updateDurum(hedefMasaId, 'bos')
 
+    // ── STOK DÜŞME: Sipariş kalemlerinin reçetesinden hammaddeleri düş ──
+    try {
+      await stokApi.siparistenStokDus(siparisId)
+    } catch (stokHata) {
+      // Stok hatası siparişi iptal etmesin — sadece logla
+      console.warn('Stok düşme hatası:', stokHata.message)
+    }
+
     return data[0]
   },
 
@@ -325,6 +333,67 @@ export const kdsApi = {
 }
 
 // ─── RAPORLAR ────────────────────────────────────────────────────────────────
+// ─── STOK API ─────────────────────────────────────────────────────────────────
+export const stokApi = {
+
+  // Sipariş kapandığında reçetedeki hammaddeleri stoktan düş
+  async siparistenStokDus(siparisId) {
+    // 1. Sipariş kalemlerini çek (urun_id + adet)
+    const { data: kalemler, error: kalemErr } = await supabase
+      .from('siparis_kalemleri')
+      .select('urun_id, adet')
+      .eq('siparis_id', siparisId)
+
+    if (kalemErr) throw kalemErr
+    if (!kalemler || kalemler.length === 0) return
+
+    // 2. Her kalem için reçeteyi çek ve stok düş
+    for (const kalem of kalemler) {
+      if (!kalem.urun_id) continue
+
+      const { data: receteler } = await supabase
+        .from('receteler')
+        .select('hammadde_id, miktar, fire_orani')
+        .eq('urun_id', kalem.urun_id)
+
+      if (!receteler || receteler.length === 0) continue
+
+      for (const r of receteler) {
+        // Fire dahil net tüketim = miktar × (1 + fire/100) × adet
+        const netMiktar = r.miktar * (1 + (r.fire_orani || 0) / 100) * kalem.adet
+
+        // Mevcut stoku çek
+        const { data: hammadde } = await supabase
+          .from('hammaddeler')
+          .select('stok_miktari, ad')
+          .eq('id', r.hammadde_id)
+          .single()
+
+        if (!hammadde) continue
+
+        const yeniStok = Math.max(0, (hammadde.stok_miktari || 0) - netMiktar)
+
+        // Stoku güncelle
+        await supabase.from('hammaddeler')
+          .update({ stok_miktari: yeniStok })
+          .eq('id', r.hammadde_id)
+
+        // Hareket logu
+        await supabase.from('stok_hareketleri').insert({
+          hammadde_id: r.hammadde_id,
+          hareket_tipi: 'cikis',
+          miktar: netMiktar,
+          onceki_stok: hammadde.stok_miktari || 0,
+          sonraki_stok: yeniStok,
+          kaynak: 'siparis',
+          kaynak_id: siparisId,
+          notlar: `Sipariş kapatma — ${kalem.adet} porsiyon`
+        })
+      }
+    }
+  }
+}
+
 export const raporlarApi = {
   async bugunOzet() {
     const bugun = new Date(); bugun.setHours(0,0,0,0)
