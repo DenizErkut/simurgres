@@ -59,13 +59,25 @@ export default function StokPage() {
   const [sekme, setSekme] = useState('stok')
   const [arama, setArama] = useState('')
 
+  const [hareketOzet, setHareketOzet] = useState({}) // hammadde_id -> { giris, cikis }
+
   const yukle = useCallback(async () => {
     const [{ data: h }, { data: hr }] = await Promise.all([
       supabase.from('hammaddeler').select('*').eq('aktif', true).order('ad'),
-      supabase.from('stok_hareketleri').select('*, hammaddeler(ad, birim)').order('created_at', { ascending: false }).limit(50)
+      supabase.from('stok_hareketleri').select('*, hammaddeler(ad, birim)').order('created_at', { ascending: false }).limit(200)
     ])
     setHammaddeler(h || [])
     setHareketler(hr || [])
+
+    // Her hammadde için toplam giriş / çıkış hesapla
+    const ozet = {}
+    ;(hr || []).forEach(r => {
+      if (!r.hammadde_id) return
+      if (!ozet[r.hammadde_id]) ozet[r.hammadde_id] = { giris: 0, cikis: 0 }
+      if (['giris','fatura'].includes(r.hareket_tipi)) ozet[r.hammadde_id].giris += r.miktar || 0
+      else if (['cikis','siparis','fire'].includes(r.hareket_tipi)) ozet[r.hammadde_id].cikis += r.miktar || 0
+    })
+    setHareketOzet(ozet)
     setLoading(false)
   }, [])
 
@@ -159,7 +171,9 @@ export default function StokPage() {
                 <tr>
                   <th style={{ paddingLeft: 16 }}>Hammadde</th>
                   <th>Kategori</th>
-                  <th>Stok</th>
+                  <th style={{ color: 'var(--green)', textAlign: 'center' }}>↑ Toplam Giren</th>
+                  <th style={{ color: 'var(--red)', textAlign: 'center' }}>↓ Toplam Çıkan</th>
+                  <th style={{ textAlign: 'center' }}>= Kalan</th>
                   <th>Min. Stok</th>
                   <th>Maliyet</th>
                   <th>Stok Değeri</th>
@@ -169,6 +183,7 @@ export default function StokPage() {
               <tbody>
                 {filtreli.map(h => {
                   const kritik = h.stok_miktari <= h.min_stok && h.min_stok > 0
+                  const oz = hareketOzet[h.id] || { giris: 0, cikis: 0 }
                   return (
                     <tr key={h.id}>
                       <td style={{ paddingLeft: 16 }}>
@@ -176,10 +191,30 @@ export default function StokPage() {
                         {kritik && <span style={{ fontSize: 10, color: 'var(--red)' }}>⚠️ Kritik</span>}
                       </td>
                       <td><span className="badge badge-gray" style={{ fontSize: 10 }}>{h.kategori}</span></td>
-                      <td>
-                        <span style={{ fontWeight: 600, color: kritik ? 'var(--red)' : 'var(--text)' }}>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ color: 'var(--green)', fontWeight: 500, fontSize: 13 }}>
+                          +{oz.giris.toFixed(2)} {h.birim}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ color: 'var(--red)', fontWeight: 500, fontSize: 13 }}>
+                          -{oz.cikis.toFixed(2)} {h.birim}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: kritik ? 'var(--red)' : 'var(--accent)' }}>
                           {h.stok_miktari} {h.birim}
                         </span>
+                        {/* Mini progress bar */}
+                        {h.min_stok > 0 && (
+                          <div style={{ height: 3, borderRadius: 2, background: 'var(--surface2)', marginTop: 3, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', borderRadius: 2,
+                              background: kritik ? 'var(--red)' : 'var(--green)',
+                              width: `${Math.min((h.stok_miktari / h.min_stok) * 100, 100)}%`
+                            }} />
+                          </div>
+                        )}
                       </td>
                       <td style={{ color: 'var(--text2)', fontSize: 12 }}>{h.min_stok} {h.birim}</td>
                       <td style={{ fontSize: 12 }}>₺{h.maliyet_fiyat}/{h.birim}</td>
