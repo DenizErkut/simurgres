@@ -335,8 +335,13 @@ export default function GarsonPage() {
           {masalar.map(m => (
             <div key={m.id}
               className={`masa-kart ${m.durum === 'dolu' ? 'dolu' : ''} ${seciliMasa?.id === m.id ? 'secili' : ''}`}
-              onClick={() => masaSec(m)}>
-              <div className="masa-no">{m.no}</div>
+              onClick={() => masaSec(m)}
+              style={m.renk && m.durum !== 'dolu' && seciliMasa?.id !== m.id ? {
+                borderTop: `3px solid ${m.renk}`,
+                background: m.renk + '18',
+                borderColor: m.renk + '60'
+              } : undefined}>
+              <div className="masa-no" style={m.renk && m.durum !== 'dolu' && seciliMasa?.id !== m.id ? { color: m.renk } : undefined}>{m.no}</div>
               <div className="masa-alt">{m.musteri_isim || (m.durum === 'dolu' ? 'Dolu' : 'Boş')}</div>
             </div>
           ))}
