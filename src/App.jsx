@@ -8,6 +8,7 @@ import KDSPage from './pages/KDSPage'
 import KasiyerPage from './pages/KasiyerPage'
 import DashboardPage from './pages/DashboardPage'
 import MenuPage from './pages/MenuPage'
+import FiyatGuncellePage from './pages/FiyatGuncellePage'
 import KullanicilarPage from './pages/KullanicilarPage'
 import YonetimPage from './pages/YonetimPage'
 import YemeksepetPage from './pages/YemeksepetPage'
@@ -64,6 +65,7 @@ const NAV = [
     izin: 'menu_duzenle',
     items: [
       { id: 'menu',   label: 'Ürünler',    icon: 'ti-soup',       component: MenuPage,    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'menu_duzenle' },
+      { id: 'fiyat',  label: 'Fiyat Güncelle', icon: 'ti-currency-lira', component: FiyatGuncellePage, roller: [ROL.YONETICI], renk: '#BA7517', bg: '#FBF1E3', izin: null },
       { id: 'recete', label: 'Reçeteler',  icon: 'ti-git-branch', component: RecetePage,  roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'recete_goruntule' },
     ]
   },

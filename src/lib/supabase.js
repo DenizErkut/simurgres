@@ -164,6 +164,17 @@ export const urunlerApi = {
       .update({ aktif })
       .eq('id', id)
     if (error) throw error
+  },
+
+  // Toplu fiyat güncelleme — [{id, fiyat}] dizisi alır
+  async topluFiyatGuncelle(degisiklikler) {
+    const sonuclar = []
+    for (const d of degisiklikler) {
+      const { error } = await supabase.from('urunler').update({ fiyat: d.fiyat }).eq('id', d.id)
+      if (error) { sonuclar.push({ id: d.id, basarili: false, hata: error.message }) }
+      else sonuclar.push({ id: d.id, basarili: true })
+    }
+    return sonuclar
   }
 }
 
