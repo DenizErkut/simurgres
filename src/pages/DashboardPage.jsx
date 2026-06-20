@@ -648,7 +648,7 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--radius)' }}>
-            💡 KDV hariç satış tutarı üzerinden hammadde maliyeti düşülerek brüt kâr hesaplanır. Reçetesi tanımlanmamış ürünler maliyet hesabına dahil edilmez.
+            💡 Hammadde maliyeti, o hammaddenin tüm fatura geçmişinden hesaplanan <strong>ağırlıklı ortalama giriş fiyatı</strong> üzerinden alınır (toplam tutar ÷ toplam miktar). Fatura geçmişi olmayan hammaddeler için Stok ekranındaki manuel maliyet fiyatı kullanılır. KDV hariç satış tutarından bu maliyet düşülerek brüt kâr hesaplanır.
           </div>
 
           {/* Ürün bazlı karlılık tablosu */}
@@ -673,6 +673,16 @@ export default function DashboardPage() {
                       {u.ad}
                       {u.receteSayisi === 0 && (
                         <span style={{ fontSize: 10, color: 'var(--amber)', marginLeft: 6 }}>⚠️ Reçetesiz</span>
+                      )}
+                      {u.receteSayisi > 0 && u.maliyetKaynagi === 'fatura' && (
+                        <span style={{ fontSize: 10, color: 'var(--green)', marginLeft: 6 }} title="Maliyet fatura geçmişinden ağırlıklı ortalama ile hesaplandı">
+                          📋 Fatura
+                        </span>
+                      )}
+                      {u.receteSayisi > 0 && u.maliyetKaynagi === 'karma' && (
+                        <span style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 6 }} title="Bazı hammaddelerin fatura geçmişi yok, manuel maliyet kullanıldı">
+                          ~ Karma
+                        </span>
                       )}
                     </td>
                     <td style={{ fontSize: 12 }}>{u.kategoriEmoji} {u.kategori}</td>

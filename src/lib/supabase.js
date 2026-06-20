@@ -717,31 +717,53 @@ export const raporlarGelismisApi = {
     const { data: satislar, error: satisErr } = await satisQ
     if (satisErr) console.error('Karlılık raporu satış hatası:', satisErr)
 
-    // 2. Tüm reçeteler (hammadde maliyetleri)
+    // 2. Tüm reçeteler (hangi üründe hangi hammadde ne kadar)
     const { data: receteler } = await supabase
       .from('receteler')
-      .select('urun_id, miktar, fire_orani, hammaddeler(id, ad, maliyet_fiyat, birim)')
+      .select('urun_id, hammadde_id, miktar, fire_orani, hammaddeler(id, ad, maliyet_fiyat, birim)')
 
-    // 3. Hammadde giriş hareketleri (ağırlıklı ortalama maliyet için)
-    const { data: girisler } = await supabase
-      .from('stok_hareketleri')
-      .select('hammadde_id, miktar, onceki_stok, sonraki_stok, hareket_tipi, created_at')
-      .in('hareket_tipi', ['giris', 'fatura'])
-      .gte('created_at', baslangic)
-      .lt('created_at', bitis)
+    // 3. Hammadde başına AĞIRLIKLI ORTALAMA GİRİŞ MALİYETİ — fatura kalemlerinden hesapla
+    //    Tüm zamanların fatura geçmişi kullanılır (sadece seçili döneme ait fatura değil),
+    //    çünkü elindeki stok genelde daha önceki alımlardan gelir.
+    const { data: faturaKalemleri } = await supabase
+      .from('fatura_kalemleri')
+      .select('hammadde_id, miktar, birim_fiyat, created_at')
+      .not('hammadde_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(2000)
+
+    // Ağırlıklı ortalama: toplam_tutar / toplam_miktar (hammadde bazlı)
+    const ortalamaMaliyet = {} // hammadde_id -> { agirlikliOrtalama, sonGirisFiyati, faturaSayisi }
+    const hmGruplar = {}
+    ;(faturaKalemleri || []).forEach(fk => {
+      if (!hmGruplar[fk.hammadde_id]) hmGruplar[fk.hammadde_id] = []
+      hmGruplar[fk.hammadde_id].push(fk)
+    })
+    Object.entries(hmGruplar).forEach(([hmId, kalemler]) => {
+      const toplamTutar = kalemler.reduce((a, k) => a + (k.miktar * k.birim_fiyat), 0)
+      const toplamMiktar = kalemler.reduce((a, k) => a + k.miktar, 0)
+      ortalamaMaliyet[hmId] = {
+        agirlikliOrtalama: toplamMiktar > 0 ? +(toplamTutar / toplamMiktar).toFixed(4) : 0,
+        sonGirisFiyati: kalemler[0]?.birim_fiyat || 0, // en yeni fatura (created_at desc sıralı)
+        faturaSayisi: kalemler.length
+      }
+    })
+
+    // Hammadde maliyetini bul: önce fatura ortalaması, yoksa hammaddeler.maliyet_fiyat (fallback)
+    const hammaddeMaliyetiBul = (hammadde) => {
+      if (!hammadde) return { maliyet: 0, kaynak: 'yok' }
+      const fatura = ortalamaMaliyet[hammadde.id]
+      if (fatura && fatura.faturaSayisi > 0) {
+        return { maliyet: fatura.agirlikliOrtalama, kaynak: 'fatura', faturaSayisi: fatura.faturaSayisi }
+      }
+      return { maliyet: hammadde.maliyet_fiyat || 0, kaynak: 'manuel' }
+    }
 
     // 4. Reçeteleri urun_id bazlı grupla
     const receteMap = {}
     ;(receteler || []).forEach(r => {
       if (!receteMap[r.urun_id]) receteMap[r.urun_id] = []
       receteMap[r.urun_id].push(r)
-    })
-
-    // 5. Hammadde başına ağırlıklı ortalama giriş maliyeti
-    const hmGirisMaliyeti = {}
-    ;(girisler || []).forEach(g => {
-      if (!hmGirisMaliyeti[g.hammadde_id]) hmGirisMaliyeti[g.hammadde_id] = { toplamTutar: 0, toplamMiktar: 0 }
-      // Her giriş için fatura maliyeti bilinmiyorsa mevcut maliyet kullan
     })
 
     // 6. Ürün bazlı satış grupla
@@ -772,12 +794,14 @@ export const raporlarGelismisApi = {
       const satirSatisKDVHaric = +(satirSatisKDVDahil * 100 / (100 + kdvOrani)).toFixed(2)
       const satirKDV = +(satirSatisKDVDahil - satirSatisKDVHaric).toFixed(2)
 
-      // Reçete maliyeti (1 porsiyon)
+      // Reçete maliyeti (1 porsiyon) — fatura ağırlıklı ortalama maliyetinden
       const recete = receteMap[u.urun_id] || []
+      let faturaKaynakli = recete.length > 0
       const porsiyonMaliyet = recete.reduce((a, r) => {
-        const hmMaliyet = r.hammaddeler?.maliyet_fiyat || 0
+        const { maliyet, kaynak } = hammaddeMaliyetiBul(r.hammaddeler)
+        if (kaynak !== 'fatura') faturaKaynakli = false
         const netMiktar = r.miktar * (1 + (r.fire_orani || 0) / 100)
-        return a + hmMaliyet * netMiktar
+        return a + maliyet * netMiktar
       }, 0)
 
       const toplamMaliyet = +(porsiyonMaliyet * u.toplamAdet).toFixed(2)
@@ -790,6 +814,7 @@ export const raporlarGelismisApi = {
 
       return {
         ...u,
+        maliyetKaynagi: recete.length === 0 ? 'yok' : faturaKaynakli ? 'fatura' : 'karma', // karma: bazı hammaddeler hiç fatura görmemiş, manuel fiyat kullanıldı
         satirSatisKDVDahil: +satirSatisKDVDahil.toFixed(2),
         satirSatisKDVHaric: +satirSatisKDVHaric.toFixed(2),
         satirKDV: +satirKDV.toFixed(2),
