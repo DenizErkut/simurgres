@@ -655,6 +655,124 @@ export const raporlarGelismisApi = {
 
   // Platform karşılaştırması
 
+
+  // Stok Karlılık Raporu
+  async karlilikRaporu(baslangic, bitis) {
+    // 1. Dönemdeki tüm satılan sipariş kalemleri (ürün bazlı)
+    const { data: satislar } = await supabase
+      .from('siparis_kalemleri')
+      .select('urun_id, urun_ad, urun_fiyat, adet, urunler(kdv_orani, kategoriler(ad, emoji)), siparisler!inner(created_at, durum)')
+      .eq('siparisler.durum', 'odendi')
+      .gte('siparisler.created_at', baslangic)
+      .lt('siparisler.created_at', bitis)
+
+    // 2. Tüm reçeteler (hammadde maliyetleri)
+    const { data: receteler } = await supabase
+      .from('receteler')
+      .select('urun_id, miktar, fire_orani, hammaddeler(id, ad, maliyet_fiyat, birim)')
+
+    // 3. Hammadde giriş hareketleri (ağırlıklı ortalama maliyet için)
+    const { data: girisler } = await supabase
+      .from('stok_hareketleri')
+      .select('hammadde_id, miktar, onceki_stok, sonraki_stok, hareket_tipi, created_at')
+      .in('hareket_tipi', ['giris', 'fatura'])
+      .gte('created_at', baslangic)
+      .lt('created_at', bitis)
+
+    // 4. Reçeteleri urun_id bazlı grupla
+    const receteMap = {}
+    ;(receteler || []).forEach(r => {
+      if (!receteMap[r.urun_id]) receteMap[r.urun_id] = []
+      receteMap[r.urun_id].push(r)
+    })
+
+    // 5. Hammadde başına ağırlıklı ortalama giriş maliyeti
+    const hmGirisMaliyeti = {}
+    ;(girisler || []).forEach(g => {
+      if (!hmGirisMaliyeti[g.hammadde_id]) hmGirisMaliyeti[g.hammadde_id] = { toplamTutar: 0, toplamMiktar: 0 }
+      // Her giriş için fatura maliyeti bilinmiyorsa mevcut maliyet kullan
+    })
+
+    // 6. Ürün bazlı satış grupla
+    const urunler = {}
+    ;(satislar || []).forEach(s => {
+      const key = s.urun_id || s.urun_ad
+      if (!urunler[key]) {
+        urunler[key] = {
+          urun_id: s.urun_id,
+          ad: s.urun_ad,
+          kategori: s.urunler?.kategoriler?.ad || 'Diğer',
+          kategoriEmoji: s.urunler?.kategoriler?.emoji || '🍽️',
+          kdvOrani: s.urunler?.kdv_orani || 10,
+          satirSayisi: 0,
+          toplamAdet: 0,
+          toplamSatisTutar: 0,  // KDV dahil
+        }
+      }
+      urunler[key].toplamAdet += s.adet || 1
+      urunler[key].toplamSatisTutar += (s.urun_fiyat || 0) * (s.adet || 1)
+      urunler[key].satirSayisi++
+    })
+
+    // 7. Her ürün için hammadde maliyeti hesapla
+    const sonuclar = Object.values(urunler).map(u => {
+      const kdvOrani = u.kdvOrani || 10
+      const satirSatisKDVDahil = u.toplamSatisTutar
+      const satirSatisKDVHaric = +(satirSatisKDVDahil * 100 / (100 + kdvOrani)).toFixed(2)
+      const satirKDV = +(satirSatisKDVDahil - satirSatisKDVHaric).toFixed(2)
+
+      // Reçete maliyeti (1 porsiyon)
+      const recete = receteMap[u.urun_id] || []
+      const porsiyonMaliyet = recete.reduce((a, r) => {
+        const hmMaliyet = r.hammaddeler?.maliyet_fiyat || 0
+        const netMiktar = r.miktar * (1 + (r.fire_orani || 0) / 100)
+        return a + hmMaliyet * netMiktar
+      }, 0)
+
+      const toplamMaliyet = +(porsiyonMaliyet * u.toplamAdet).toFixed(2)
+      const birimSatisFiyati = u.toplamAdet ? +(u.toplamSatisTutar / u.toplamAdet).toFixed(2) : 0
+      const birimSatisKDVHaric = +(birimSatisFiyati * 100 / (100 + kdvOrani)).toFixed(2)
+
+      const brutKar = +(satirSatisKDVHaric - toplamMaliyet).toFixed(2)
+      const brutKarMarji = satirSatisKDVHaric > 0 ? +((brutKar / satirSatisKDVHaric) * 100).toFixed(1) : 0
+      const kdvDahilKar = +(satirSatisKDVDahil - toplamMaliyet).toFixed(2)
+
+      return {
+        ...u,
+        satirSatisKDVDahil: +satirSatisKDVDahil.toFixed(2),
+        satirSatisKDVHaric: +satirSatisKDVHaric.toFixed(2),
+        satirKDV: +satirKDV.toFixed(2),
+        porsiyonMaliyet: +porsiyonMaliyet.toFixed(2),
+        toplamMaliyet,
+        birimSatisFiyati,
+        birimSatisKDVHaric,
+        brutKar,
+        brutKarMarji,
+        kdvDahilKar,
+        receteSayisi: recete.length,
+      }
+    })
+
+    // Özet
+    const toplamSatisKDVDahil = sonuclar.reduce((a, u) => a + u.satirSatisKDVDahil, 0)
+    const toplamSatisKDVHaric = sonuclar.reduce((a, u) => a + u.satirSatisKDVHaric, 0)
+    const toplamKDV = sonuclar.reduce((a, u) => a + u.satirKDV, 0)
+    const toplamMaliyet = sonuclar.reduce((a, u) => a + u.toplamMaliyet, 0)
+    const toplamBrutKar = sonuclar.reduce((a, u) => a + u.brutKar, 0)
+    const genelKarMarji = toplamSatisKDVHaric > 0 ? +((toplamBrutKar / toplamSatisKDVHaric) * 100).toFixed(1) : 0
+
+    return {
+      urunler: sonuclar.sort((a, b) => b.brutKar - a.brutKar),
+      ozet: {
+        toplamSatisKDVDahil: +toplamSatisKDVDahil.toFixed(2),
+        toplamSatisKDVHaric: +toplamSatisKDVHaric.toFixed(2),
+        toplamKDV: +toplamKDV.toFixed(2),
+        toplamMaliyet: +toplamMaliyet.toFixed(2),
+        toplamBrutKar: +toplamBrutKar.toFixed(2),
+        genelKarMarji,
+      }
+    }
+  },
   // Garson bazlı satış raporu
   async garsonRaporu(baslangic, bitis) {
     // Sipariş bazlı ciro

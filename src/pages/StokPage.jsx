@@ -131,7 +131,7 @@ export default function StokPage() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {kritikStoklar.map(h => (
               <span key={h.id} style={{ background: 'white', padding: '2px 10px', borderRadius: 20, fontSize: 12, color: 'var(--red)' }}>
-                {h.ad}: {h.stok_miktari} {h.birim}
+                {h.ad}: {Number(h.stok_miktari).toFixed(2)} {h.birim}
               </span>
             ))}
           </div>
@@ -203,7 +203,7 @@ export default function StokPage() {
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <span style={{ fontWeight: 700, fontSize: 14, color: kritik ? 'var(--red)' : 'var(--accent)' }}>
-                          {h.stok_miktari} {h.birim}
+                          {Number(h.stok_miktari).toFixed(2)} {h.birim}
                         </span>
                         {/* Mini progress bar */}
                         {h.min_stok > 0 && (

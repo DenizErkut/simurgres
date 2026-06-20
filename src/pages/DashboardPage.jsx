@@ -71,6 +71,7 @@ function Sekmeler({ aktif, onChange }) {
     { id: 'stok',    label: 'Stok' },
     { id: 'fatura',  label: 'Faturalar' },
     { id: 'garson',  label: 'Garson Raporu' },
+    { id: 'karlilik', label: 'Karlılık Analizi' },
     { id: 'log',     label: 'İşlem Logu' },
   ]
   return (
@@ -140,6 +141,7 @@ export default function DashboardPage() {
   const [log, setLog] = useState([])
   const [garsonlar, setGarsonlar] = useState([])
   const [seciliGarson, setSeciliGarson] = useState(null)
+  const [karlilik, setKarlilik] = useState(null)
   const [exportMenu, setExportMenu] = useState(false)
 
   // Tarih aralıkları
@@ -174,11 +176,13 @@ export default function DashboardPage() {
         raporlarGelismisApi.faturaOzeti(bas, bit),
         raporlarGelismisApi.siparisLog(bas, bit),
         raporlarGelismisApi.garsonRaporu(bas, bit),
+        raporlarGelismisApi.karlilikRaporu(bas, bit),
       ])
       setOzet(oz); setTopSatan(sat); setSaatlik(saat); setGunluk(gun)
       setKategoriler(kat); setMasaPerf(masa); setPlatformlar(plat)
       setStoklar(stok); setFaturalar(fat); setLog(loglar)
       setGarsonlar(gars); setSeciliGarson(gars[0] || null)
+      setKarlilik(karl)
     } catch (e) { toast.error('Rapor hatası: ' + e.message) }
     finally { setLoading(false) }
   }, [tarihAralik, sekme])
@@ -196,6 +200,7 @@ export default function DashboardPage() {
     stok: 'Stok Durumu',
     fatura: 'Fatura Raporu',
     garson: 'Garson Bazlı Rapor',
+    karlilik: 'Karlılık Analizi',
     log: 'İşlem Logu',
   }
 
@@ -255,7 +260,7 @@ export default function DashboardPage() {
       <Sekmeler aktif={sekme} onChange={s => setSekme(s)} />
 
       {/* Özet kartlar — tüm sekmelerde */}
-      {['bugun','hafta','ay','urun','kategori','masa','platform','garson'].includes(sekme) && (
+      {['bugun','hafta','ay','urun','kategori','masa','platform','garson','karlilik'].includes(sekme) && (
         <OzetKartlar ozet={ozet} />
       )}
 
@@ -536,6 +541,83 @@ export default function DashboardPage() {
         </div>
       )}
 
+
+
+      {/* ── KARLILIK ANALİZİ ── */}
+      {sekme === 'karlilik' && karlilik && (
+        <div>
+          {/* Özet kartlar */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px,1fr))', gap: 10, marginBottom: 16 }}>
+            {[
+              { label: 'Satış (KDV Dahil)', val: para(karlilik.ozet.toplamSatisKDVDahil), renk: '#1D9E75' },
+              { label: 'Satış (KDV Hariç)', val: para(karlilik.ozet.toplamSatisKDVHaric), renk: '#185FA5' },
+              { label: 'KDV Toplamı', val: para(karlilik.ozet.toplamKDV), renk: '#534AB7' },
+              { label: 'Hammadde Maliyeti', val: para(karlilik.ozet.toplamMaliyet), renk: '#D85A30' },
+              { label: 'Brüt Kâr', val: para(karlilik.ozet.toplamBrutKar), renk: karlilik.ozet.toplamBrutKar >= 0 ? '#1D9E75' : '#E4002B' },
+              { label: 'Kâr Marjı', val: `%${karlilik.ozet.genelKarMarji}`, renk: karlilik.ozet.genelKarMarji > 60 ? '#1D9E75' : karlilik.ozet.genelKarMarji > 30 ? '#BA7517' : '#E4002B' },
+            ].map(k => (
+              <div key={k.label} className="stat-kart" style={{ borderLeft: `3px solid ${k.renk}` }}>
+                <div className="stat-label">{k.label}</div>
+                <div className="stat-val" style={{ color: k.renk, fontSize: 16 }}>{k.val}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--radius)' }}>
+            💡 KDV hariç satış tutarı üzerinden hammadde maliyeti düşülerek brüt kâr hesaplanır. Reçetesi tanımlanmamış ürünler maliyet hesabına dahil edilmez.
+          </div>
+
+          {/* Ürün bazlı karlılık tablosu */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ paddingLeft: 16 }}>Ürün</th>
+                  <th>Kategori</th>
+                  <th style={{ textAlign: 'center' }}>Adet</th>
+                  <th style={{ textAlign: 'right' }}>Satış (KDV Dahil)</th>
+                  <th style={{ textAlign: 'right' }}>Satış (KDV Hariç)</th>
+                  <th style={{ textAlign: 'right' }}>Maliyet</th>
+                  <th style={{ textAlign: 'right' }}>Brüt Kâr</th>
+                  <th style={{ textAlign: 'center', paddingRight: 16 }}>Kâr Marjı</th>
+                </tr>
+              </thead>
+              <tbody>
+                {karlilik.urunler.map(u => (
+                  <tr key={u.urun_id || u.ad}>
+                    <td style={{ paddingLeft: 16, fontWeight: 500 }}>
+                      {u.ad}
+                      {u.receteSayisi === 0 && (
+                        <span style={{ fontSize: 10, color: 'var(--amber)', marginLeft: 6 }}>⚠️ Reçetesiz</span>
+                      )}
+                    </td>
+                    <td style={{ fontSize: 12 }}>{u.kategoriEmoji} {u.kategori}</td>
+                    <td style={{ textAlign: 'center' }}>{u.toplamAdet}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--text2)' }}>{para(u.satirSatisKDVDahil)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 500 }}>{para(u.satirSatisKDVHaric)}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--accent)' }}>{para(u.toplamMaliyet)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: u.brutKar >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      {para(u.brutKar)}
+                    </td>
+                    <td style={{ textAlign: 'center', paddingRight: 16 }}>
+                      <span style={{
+                        padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                        background: u.brutKarMarji > 60 ? 'var(--green-light)' : u.brutKarMarji > 30 ? 'var(--amber-light)' : 'var(--red-light)',
+                        color: u.brutKarMarji > 60 ? '#085041' : u.brutKarMarji > 30 ? '#633806' : 'var(--red)'
+                      }}>
+                        %{u.brutKarMarji}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {karlilik.urunler.length === 0 && (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--text3)' }}>Veri yok</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── GARSON RAPORU ── */}
       {sekme === 'garson' && (
