@@ -2,17 +2,27 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useIzin } from '../contexts/IzinContext'
 import toast from 'react-hot-toast'
-import { Plus, Trash2, CheckCircle, FileText, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, FileText, ChevronDown, ChevronUp, Search, Edit2, X } from 'lucide-react'
 
-function FaturaForm({ tedarikciler, hammaddeler, onKaydet, onIptal }) {
-  const [form, setForm] = useState({
+function FaturaForm({ tedarikciler, hammaddeler, onKaydet, onIptal, duzenlenecek }) {
+  const [form, setForm] = useState(duzenlenecek ? {
+    fatura_no: duzenlenecek.fatura_no, tedarikci_id: duzenlenecek.tedarikci_id || '',
+    tedarikci_ad: duzenlenecek.tedarikci_ad || '',
+    tarih: duzenlenecek.tarih, vade_tarihi: duzenlenecek.vade_tarihi || '',
+    notlar: duzenlenecek.notlar || '', durum: duzenlenecek.durum
+  } : {
     fatura_no: '', tedarikci_id: '', tedarikci_ad: '',
     tarih: new Date().toISOString().split('T')[0],
     vade_tarihi: '', notlar: '', durum: 'odenmedi'
   })
-  const [kalemler, setKalemler] = useState([
-    { hammadde_id: '', hammadde_ad: '', miktar: '', birim: 'kg', birim_fiyat: '', kdv_orani: 10 }
-  ])
+  const [kalemler, setKalemler] = useState(
+    duzenlenecek?.fatura_kalemleri?.length
+      ? duzenlenecek.fatura_kalemleri.map(k => ({
+          hammadde_id: k.hammadde_id || '', hammadde_ad: k.hammadde_ad,
+          miktar: k.miktar, birim: k.birim, birim_fiyat: k.birim_fiyat, kdv_orani: k.kdv_orani || 10
+        }))
+      : [{ hammadde_id: '', hammadde_ad: '', miktar: '', birim: 'kg', birim_fiyat: '', kdv_orani: 10 }]
+  )
   const [yukleniyor, setYukleniyor] = useState(false)
 
   const kalemGuncelle = (i, alan, deger) => {
@@ -160,7 +170,7 @@ function FaturaForm({ tedarikciler, hammaddeler, onKaydet, onIptal }) {
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
         <button className="btn btn-ghost" onClick={onIptal}>İptal</button>
         <button className="btn btn-primary" onClick={kaydet} disabled={yukleniyor}>
-          <CheckCircle size={13} /> {yukleniyor ? 'Kaydediliyor...' : 'Faturayı Kaydet'}
+          <CheckCircle size={13} /> {yukleniyor ? 'Kaydediliyor...' : duzenlenecek ? 'Değişiklikleri Kaydet' : 'Faturayı Kaydet'}
         </button>
       </div>
     </div>
@@ -174,6 +184,7 @@ export default function FaturaPage() {
   const [hammaddeler, setHammaddeler] = useState([])
   const [loading, setLoading] = useState(true)
   const [yeniForm, setYeniForm] = useState(false)
+  const [duzenlenecekFatura, setDuzenlenecekFatura] = useState(null)
   const [aramaMetni, setAramaMetni] = useState('')
   const [acikFatura, setAcikFatura] = useState(null)
 
@@ -193,6 +204,47 @@ export default function FaturaPage() {
 
   const faturaKaydet = async ({ fatura, kalemler }) => {
     try {
+      if (duzenlenecekFatura) {
+        // ── GÜNCELLEME MODU ──
+        // 1. Önceki kalemlerin stok etkisini geri al
+        const { data: eskiKalemler } = await supabase.from('fatura_kalemleri')
+          .select('*').eq('fatura_id', duzenlenecekFatura.id)
+        for (const ek of (eskiKalemler || [])) {
+          if (ek.hammadde_id) {
+            const { data: hm } = await supabase.from('hammaddeler').select('stok_miktari').eq('id', ek.hammadde_id).single()
+            const geriAlinmisStok = Math.max(0, (hm?.stok_miktari || 0) - ek.miktar)
+            await supabase.from('hammaddeler').update({ stok_miktari: geriAlinmisStok }).eq('id', ek.hammadde_id)
+          }
+        }
+        // 2. Eski kalem hareketlerini ve kalemlerini sil
+        await supabase.from('stok_hareketleri').delete().eq('kaynak', 'fatura').eq('kaynak_id', duzenlenecekFatura.id)
+        await supabase.from('fatura_kalemleri').delete().eq('fatura_id', duzenlenecekFatura.id)
+
+        // 3. Fatura ana kaydını güncelle
+        const { error } = await supabase.from('faturalar').update(fatura).eq('id', duzenlenecekFatura.id)
+        if (error) throw error
+
+        // 4. Yeni kalemleri ekle ve stoğu tekrar uygula
+        await supabase.from('fatura_kalemleri').insert(kalemler.map(k => ({ ...k, fatura_id: duzenlenecekFatura.id })))
+        for (const k of kalemler) {
+          if (k.hammadde_id) {
+            const { data: hm } = await supabase.from('hammaddeler').select('stok_miktari').eq('id', k.hammadde_id).single()
+            const yeniStok = (hm?.stok_miktari || 0) + parseFloat(k.miktar)
+            await supabase.from('hammaddeler').update({ stok_miktari: yeniStok }).eq('id', k.hammadde_id)
+            await supabase.from('stok_hareketleri').insert({
+              hammadde_id: k.hammadde_id, hareket_tipi: 'giris',
+              miktar: parseFloat(k.miktar), onceki_stok: hm?.stok_miktari || 0,
+              sonraki_stok: yeniStok, kaynak: 'fatura', kaynak_id: duzenlenecekFatura.id,
+              notlar: 'Fatura düzenlendi'
+            })
+          }
+        }
+        toast.success('Fatura güncellendi, stok yeniden hesaplandı')
+        setDuzenlenecekFatura(null); yukle()
+        return
+      }
+
+      // ── YENİ FATURA MODU ──
       const { data: yeni, error } = await supabase.from('faturalar').insert(fatura).select().single()
       if (error) throw error
       await supabase.from('fatura_kalemleri').insert(kalemler.map(k => ({ ...k, fatura_id: yeni.id })))
@@ -212,6 +264,40 @@ export default function FaturaPage() {
       toast.success('Fatura kaydedildi, stok güncellendi')
       setYeniForm(false); yukle()
     } catch (e) { toast.error('Hata: ' + e.message) }
+  }
+
+  const faturaSil = async (fatura) => {
+    const onay = window.confirm(
+      `"${fatura.fatura_no}" faturasını silmek istediğinize emin misiniz?\n\n` +
+      `Bu işlem faturadaki hammaddelerin stoktan da geri düşülmesine neden olur.`
+    )
+    if (!onay) return
+
+    try {
+      // 1. Fatura kalemlerini çek
+      const { data: kalemler } = await supabase.from('fatura_kalemleri')
+        .select('*').eq('fatura_id', fatura.id)
+
+      // 2. Her hammaddenin stoğundan faturadaki miktarı geri düş
+      for (const k of (kalemler || [])) {
+        if (k.hammadde_id) {
+          const { data: hm } = await supabase.from('hammaddeler').select('stok_miktari').eq('id', k.hammadde_id).single()
+          const yeniStok = Math.max(0, (hm?.stok_miktari || 0) - k.miktar)
+          await supabase.from('hammaddeler').update({ stok_miktari: yeniStok }).eq('id', k.hammadde_id)
+        }
+      }
+
+      // 3. İlgili stok hareketlerini sil
+      await supabase.from('stok_hareketleri').delete().eq('kaynak', 'fatura').eq('kaynak_id', fatura.id)
+
+      // 4. Fatura kalemlerini ve faturayı sil
+      await supabase.from('fatura_kalemleri').delete().eq('fatura_id', fatura.id)
+      const { error } = await supabase.from('faturalar').delete().eq('id', fatura.id)
+      if (error) throw error
+
+      toast.success('Fatura silindi, stok geri düşüldü')
+      yukle()
+    } catch (e) { toast.error('Silme hatası: ' + e.message) }
   }
 
   const durumRenk = { odenmedi: 'badge-red', kismi: 'badge-amber', odendi: 'badge-green' }
@@ -235,20 +321,27 @@ export default function FaturaPage() {
           <div style={{ fontWeight: 700, fontSize: 15 }}>Fatura Girişi</div>
           <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{faturalar.length} fatura</div>
         </div>
-        {izinVar('fatura_giris') && !yeniForm && (
+        {izinVar('fatura_giris') && !yeniForm && !duzenlenecekFatura && (
           <button className="btn btn-primary" onClick={() => setYeniForm(true)}>
             <Plus size={14} /> Yeni Fatura
           </button>
         )}
       </div>
 
-      {yeniForm && (
+      {(yeniForm || duzenlenecekFatura) && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileText size={15} /> Yeni Alış Faturası
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FileText size={15} /> {duzenlenecekFatura ? `Fatura Düzenle — ${duzenlenecekFatura.fatura_no}` : 'Yeni Alış Faturası'}
+            </div>
+            {duzenlenecekFatura && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setDuzenlenecekFatura(null)}><X size={13} /></button>
+            )}
           </div>
           <FaturaForm tedarikciler={tedarikciler} hammaddeler={hammaddeler}
-            onKaydet={faturaKaydet} onIptal={() => setYeniForm(false)} />
+            duzenlenecek={duzenlenecekFatura}
+            onKaydet={faturaKaydet}
+            onIptal={() => { setYeniForm(false); setDuzenlenecekFatura(null) }} />
         </div>
       )}
 
@@ -285,22 +378,41 @@ export default function FaturaPage() {
               <th>Vade</th>
               <th>Tutar</th>
               <th>Durum</th>
-              <th style={{ paddingRight: 16 }}></th>
+              <th style={{ paddingRight: 16 }}>İşlem</th>
             </tr>
           </thead>
           <tbody>
             {filtreli.map(f => (
               <>
-                <tr key={f.id} style={{ cursor: 'pointer' }} onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)}>
-                  <td style={{ paddingLeft: 16, fontWeight: 500 }}>{f.fatura_no}</td>
-                  <td>{f.tedarikci_ad || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{new Date(f.tarih).toLocaleDateString('tr-TR')}</td>
-                  <td style={{ fontSize: 12, color: f.vade_tarihi && new Date(f.vade_tarihi) < new Date() && f.durum !== 'odendi' ? 'var(--red)' : 'var(--text2)' }}>
+                <tr key={f.id} style={{ cursor: 'pointer' }}>
+                  <td style={{ paddingLeft: 16, fontWeight: 500 }} onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)}>{f.fatura_no}</td>
+                  <td onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)}>{f.tedarikci_ad || '—'}</td>
+                  <td style={{ fontSize: 12 }} onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)}>{new Date(f.tarih).toLocaleDateString('tr-TR')}</td>
+                  <td style={{ fontSize: 12, color: f.vade_tarihi && new Date(f.vade_tarihi) < new Date() && f.durum !== 'odendi' ? 'var(--red)' : 'var(--text2)' }}
+                    onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)}>
                     {f.vade_tarihi ? new Date(f.vade_tarihi).toLocaleDateString('tr-TR') : '—'}
                   </td>
-                  <td style={{ fontWeight: 600, color: 'var(--accent)' }}>₺{f.genel_toplam?.toFixed(2)}</td>
-                  <td><span className={`badge ${durumRenk[f.durum]}`}>{durumLabel[f.durum]}</span></td>
-                  <td style={{ paddingRight: 16 }}>{acikFatura === f.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--accent)' }} onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)}>₺{f.genel_toplam?.toFixed(2)}</td>
+                  <td onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)}><span className={`badge ${durumRenk[f.durum]}`}>{durumLabel[f.durum]}</span></td>
+                  <td style={{ paddingRight: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {izinVar('fatura_giris') && (
+                        <>
+                          <button className="btn btn-ghost btn-sm" title="Düzenle"
+                            onClick={(e) => { e.stopPropagation(); setDuzenlenecekFatura(f); setYeniForm(false) }}>
+                            <Edit2 size={12} />
+                          </button>
+                          <button className="btn btn-ghost btn-sm" title="Sil" style={{ color: 'var(--red)' }}
+                            onClick={(e) => { e.stopPropagation(); faturaSil(f) }}>
+                            <Trash2 size={12} />
+                          </button>
+                        </>
+                      )}
+                      <span onClick={() => setAcikFatura(acikFatura === f.id ? null : f.id)} style={{ cursor: 'pointer', padding: 4 }}>
+                        {acikFatura === f.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </span>
+                    </div>
+                  </td>
                 </tr>
                 {acikFatura === f.id && (
                   <tr key={f.id + '_detail'}>
