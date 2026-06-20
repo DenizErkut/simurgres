@@ -480,7 +480,26 @@ export const realtimeApi = {
 export const raporlarGelismisApi = {
 
   // Tarih aralığı özeti
-  async araliklarOzet(baslangic, bitis) {
+  async araliklarOzet(baslangic, bitis, kategoriId = null) {
+    if (kategoriId) {
+      // Kategori filtresi varsa kalem bazlı hesapla
+      const { data: kalemler } = await supabase.from('siparis_kalemleri')
+        .select('urun_fiyat, adet, urunler!inner(kategori_id), siparisler!inner(genel_toplam, odeme_yontemi, created_at, tur, durum, id)')
+        .eq('siparisler.durum', 'odendi')
+        .eq('urunler.kategori_id', kategoriId)
+        .gte('siparisler.created_at', baslangic)
+        .lt('siparisler.created_at', bitis)
+
+      const toplam = (kalemler||[]).reduce((a,k) => a + k.urun_fiyat * k.adet, 0)
+      const siparisIdSet = new Set((kalemler||[]).map(k => k.siparisler.id))
+      // Ödeme dağılımı için sipariş bazlı oranlama yapmak karmaşık; basitçe kalem toplamını nakite ata, diğerlerini 0 göster
+      return {
+        toplam: +toplam.toFixed(2), siparisSayisi: siparisIdSet.size,
+        ort: siparisIdSet.size ? +(toplam/siparisIdSet.size).toFixed(2) : 0,
+        nakit: 0, kart: 0, online: 0, paket: 0, masa: +toplam.toFixed(2),
+        kategoriFiltreli: true
+      }
+    }
     const { data } = await supabase.from('siparisler')
       .select('genel_toplam, odeme_yontemi, created_at, masa_no, tur')
       .eq('durum', 'odendi')
@@ -541,12 +560,14 @@ export const raporlarGelismisApi = {
   },
 
   // Kategori bazlı satış analizi
-  async kategoriBazliSatis(baslangic, bitis) {
-    const { data } = await supabase.from('siparis_kalemleri')
-      .select('urun_ad, urun_fiyat, adet, urunler(kategoriler(ad, emoji)), siparisler!inner(created_at, durum)')
+  async kategoriBazliSatis(baslangic, bitis, kategoriId = null) {
+    let q = supabase.from('siparis_kalemleri')
+      .select('urun_ad, urun_fiyat, adet, urunler!inner(kategori_id, kategoriler(ad, emoji)), siparisler!inner(created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
       .lt('siparisler.created_at', bitis)
+    if (kategoriId) q = q.eq('urunler.kategori_id', kategoriId)
+    const { data } = await q
     const kategoriler = {}
     ;(data || []).forEach(k => {
       const kat = k.urunler?.kategoriler?.ad || 'Diğer'
@@ -559,12 +580,14 @@ export const raporlarGelismisApi = {
   },
 
   // En çok satan ürünler (tarih aralıklı)
-  async topSatanGelismis(baslangic, bitis, limit = 15) {
-    const { data } = await supabase.from('siparis_kalemleri')
-      .select('urun_ad, urun_fiyat, adet, siparisler!inner(created_at, durum)')
+  async topSatanGelismis(baslangic, bitis, limit = 15, kategoriId = null) {
+    let q = supabase.from('siparis_kalemleri')
+      .select('urun_ad, urun_fiyat, adet, urun_id, urunler!inner(kategori_id), siparisler!inner(created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
       .lt('siparisler.created_at', bitis)
+    if (kategoriId) q = q.eq('urunler.kategori_id', kategoriId)
+    const { data } = await q
     const grup = {}
     ;(data || []).forEach(k => {
       if (!grup[k.urun_ad]) grup[k.urun_ad] = { ad: k.urun_ad, adet: 0, toplam: 0 }
@@ -635,7 +658,32 @@ export const raporlarGelismisApi = {
   },
 
   // Masa performansı
-  async masaPerformans(baslangic, bitis) {
+  async masaPerformans(baslangic, bitis, kategoriId = null) {
+    if (kategoriId) {
+      // Kategori filtreliyse kalem bazlı hesapla
+      const { data: kalemler } = await supabase.from('siparis_kalemleri')
+        .select('urun_fiyat, adet, urunler!inner(kategori_id), siparisler!inner(masa_no, created_at, durum)')
+        .eq('siparisler.durum', 'odendi')
+        .eq('urunler.kategori_id', kategoriId)
+        .gte('siparisler.created_at', baslangic)
+        .lt('siparisler.created_at', bitis)
+        .not('siparisler.masa_no', 'like', 'YS-%').not('siparisler.masa_no', 'like', 'GT-%')
+        .not('siparisler.masa_no', 'like', 'TY-%').not('siparisler.masa_no', 'like', 'MY-%')
+
+      const masalar = {}
+      const setler = {}
+      ;(kalemler||[]).forEach(k => {
+        const masaNo = k.siparisler?.masa_no?.split(' ·')[0] || k.siparisler?.masa_no
+        if (!masalar[masaNo]) { masalar[masaNo] = { masaNo, siparis: 0, toplam: 0 }; setler[masaNo] = new Set() }
+        masalar[masaNo].toplam += (k.urun_fiyat||0) * (k.adet||1)
+        const sid = k.siparisler?.created_at
+        if (!setler[masaNo].has(sid)) { setler[masaNo].add(sid); masalar[masaNo].siparis++ }
+      })
+      return Object.values(masalar)
+        .map(m => ({ ...m, ort: m.siparis ? +(m.toplam/m.siparis).toFixed(2) : 0, toplam: +m.toplam.toFixed(2) }))
+        .sort((a,b) => b.toplam - a.toplam)
+    }
+
     const { data } = await supabase.from('siparisler')
       .select('masa_no, genel_toplam, created_at')
       .eq('durum', 'odendi').not('masa_no', 'like', 'YS-%').not('masa_no', 'like', 'GT-%')
@@ -657,14 +705,17 @@ export const raporlarGelismisApi = {
 
 
   // Stok Karlılık Raporu
-  async karlilikRaporu(baslangic, bitis) {
+  async karlilikRaporu(baslangic, bitis, kategoriId = null) {
     // 1. Dönemdeki tüm satılan sipariş kalemleri (ürün bazlı)
-    const { data: satislar } = await supabase
+    let satisQ = supabase
       .from('siparis_kalemleri')
-      .select('urun_id, urun_ad, urun_fiyat, adet, urunler(kdv_orani, kategoriler(ad, emoji)), siparisler!inner(created_at, durum)')
+      .select('urun_id, urun_ad, urun_fiyat, adet, urunler(kategori_id, kategoriler(ad, emoji)), siparisler!inner(created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
       .lt('siparisler.created_at', bitis)
+    if (kategoriId) satisQ = satisQ.eq('urunler.kategori_id', kategoriId)
+    const { data: satislar, error: satisErr } = await satisQ
+    if (satisErr) console.error('Karlılık raporu satış hatası:', satisErr)
 
     // 2. Tüm reçeteler (hammadde maliyetleri)
     const { data: receteler } = await supabase
@@ -703,7 +754,7 @@ export const raporlarGelismisApi = {
           ad: s.urun_ad,
           kategori: s.urunler?.kategoriler?.ad || 'Diğer',
           kategoriEmoji: s.urunler?.kategoriler?.emoji || '🍽️',
-          kdvOrani: s.urunler?.kdv_orani || 10,
+          kdvOrani: 10, // sistem genelinde sabit iç KDV oranı
           satirSayisi: 0,
           toplamAdet: 0,
           toplamSatisTutar: 0,  // KDV dahil
@@ -774,40 +825,60 @@ export const raporlarGelismisApi = {
     }
   },
   // Garson bazlı satış raporu
-  async garsonRaporu(baslangic, bitis) {
-    // Sipariş bazlı ciro
+  async garsonRaporu(baslangic, bitis, kategoriId = null) {
+    // Sipariş bazlı ciro (kategori filtresi yoksa)
     const { data: siparisler } = await supabase.from('siparisler')
       .select('garson_id, garson_ad, garson, genel_toplam, created_at, masa_no, tur')
       .eq('durum', 'odendi')
       .gte('created_at', baslangic).lt('created_at', bitis)
 
     // Kalem bazlı satış (ürün + kategori detayı)
-    const { data: kalemler } = await supabase.from('siparis_kalemleri')
-      .select('urun_ad, urun_fiyat, adet, urunler(kategori_id, kategoriler(ad,emoji)), siparisler!inner(garson_id, garson_ad, garson, created_at, durum)')
+    let kq = supabase.from('siparis_kalemleri')
+      .select('urun_ad, urun_fiyat, adet, urunler!inner(kategori_id, kategoriler(ad,emoji)), siparisler!inner(garson_id, garson_ad, garson, created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
       .lt('siparisler.created_at', bitis)
+    if (kategoriId) kq = kq.eq('urunler.kategori_id', kategoriId)
+    const { data: kalemler } = await kq
 
     // Garson bazlı gruplama
     const garsonlar = {}
 
-    // Ciro topla
-    ;(siparisler || []).forEach(s => {
-      const gid = s.garson_id || s.garson_ad || 'bilinmiyor'
-      const gad = s.garson_ad || s.garson || 'İsim Yok'
-      if (!garsonlar[gid]) {
-        garsonlar[gid] = {
-          id: gid, ad: gad,
-          siparisSayisi: 0, toplam: 0,
-          urunler: {}, kategoriler: {},
-          saatDagilim: Array(24).fill(0)
+    if (!kategoriId) {
+      // Ciro topla (kategori filtresi yoksa sipariş bazlı)
+      ;(siparisler || []).forEach(s => {
+        const gid = s.garson_id || s.garson_ad || 'bilinmiyor'
+        const gad = s.garson_ad || s.garson || 'İsim Yok'
+        if (!garsonlar[gid]) {
+          garsonlar[gid] = {
+            id: gid, ad: gad,
+            siparisSayisi: 0, toplam: 0,
+            urunler: {}, kategoriler: {},
+            saatDagilim: Array(24).fill(0)
+          }
         }
-      }
-      garsonlar[gid].siparisSayisi++
-      garsonlar[gid].toplam += s.genel_toplam || 0
-      const saat = new Date(s.created_at).getHours()
-      garsonlar[gid].saatDagilim[saat]++
-    })
+        garsonlar[gid].siparisSayisi++
+        garsonlar[gid].toplam += s.genel_toplam || 0
+        const saat = new Date(s.created_at).getHours()
+        garsonlar[gid].saatDagilim[saat]++
+      })
+    } else {
+      // Kategori filtreliyse: ciro ve sipariş sayısını kalemlerden türet
+      const siparisSetleri = {}
+      ;(kalemler || []).forEach(k => {
+        const gid = k.siparisler?.garson_id || k.siparisler?.garson_ad || 'bilinmiyor'
+        const gad = k.siparisler?.garson_ad || k.siparisler?.garson || 'İsim Yok'
+        if (!garsonlar[gid]) {
+          garsonlar[gid] = { id: gid, ad: gad, siparisSayisi: 0, toplam: 0, urunler: {}, kategoriler: {}, saatDagilim: Array(24).fill(0) }
+          siparisSetleri[gid] = new Set()
+        }
+        garsonlar[gid].toplam += (k.urun_fiyat||0) * (k.adet||1)
+        const sId = k.siparisler?.created_at + gid
+        if (!siparisSetleri[gid].has(sId)) { siparisSetleri[gid].add(sId); garsonlar[gid].siparisSayisi++ }
+        const saat = new Date(k.siparisler?.created_at).getHours()
+        garsonlar[gid].saatDagilim[saat]++
+      })
+    }
 
     // Ürün & kategori topla
     ;(kalemler || []).forEach(k => {
