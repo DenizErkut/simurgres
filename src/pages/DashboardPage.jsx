@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { raporlarApi, raporlarGelismisApi } from '../lib/supabase'
+import { raporlarApi, raporlarGelismisApi, kategorilerApi } from '../lib/supabase'
 import toast from 'react-hot-toast'
 import {
   TrendingUp, ShoppingBag, Receipt, CreditCard, BarChart2,
@@ -61,9 +61,7 @@ function BarGrafik({ veri, renk = '#D85A30', yLabel = 'ciro', height = 160 }) {
 // ─── SEKME BUTONLARI ──────────────────────────────────────────────────────────
 function Sekmeler({ aktif, onChange }) {
   const sekmeler = [
-    { id: 'bugun',    label: 'Bugün' },
-    { id: 'hafta',   label: 'Bu Hafta' },
-    { id: 'ay',      label: 'Bu Ay' },
+    { id: 'genel',   label: 'Genel Bakış' },
     { id: 'urun',    label: 'Ürün Analizi' },
     { id: 'kategori',label: 'Kategori' },
     { id: 'masa',    label: 'Masa Performans' },
@@ -75,13 +73,68 @@ function Sekmeler({ aktif, onChange }) {
     { id: 'log',     label: 'İşlem Logu' },
   ]
   return (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 16 }}>
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 }}>
       {sekmeler.map(s => (
         <button key={s.id} onClick={() => onChange(s.id)}
           className={`pill ${aktif === s.id ? 'active' : ''}`}>
           {s.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+// ─── ORTAK FİLTRE ÇUBUĞU (Tarih + Kategori) ──────────────────────────────────
+function FiltreCubugu({ hizliSecim, onHizliSecim, ozelBas, ozelBit, onOzelTarih, kategoriler, seciliKategori, onKategori }) {
+  const hizliSecenekler = [
+    { id: 'bugun', label: 'Bugün' },
+    { id: 'dun', label: 'Dün' },
+    { id: 'hafta', label: 'Bu Hafta' },
+    { id: 'gecenHafta', label: 'Geçen Hafta' },
+    { id: 'ay', label: 'Bu Ay' },
+    { id: 'gecenAy', label: 'Geçen Ay' },
+    { id: 'ozel', label: 'Özel Tarih' },
+  ]
+  return (
+    <div className="card" style={{ padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+      {/* Hızlı tarih seçenekleri */}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {hizliSecenekler.map(h => (
+          <button key={h.id} onClick={() => onHizliSecim(h.id)}
+            className={`pill ${hizliSecim === h.id ? 'active' : ''}`}
+            style={{ fontSize: 12, padding: '5px 11px' }}>
+            {h.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Özel tarih aralığı */}
+      {hizliSecim === 'ozel' && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="date" value={ozelBas} onChange={e => onOzelTarih(e.target.value, ozelBit)}
+            style={{ fontSize: 12, padding: '5px 8px' }} />
+          <span style={{ fontSize: 12, color: 'var(--text2)' }}>—</span>
+          <input type="date" value={ozelBit} onChange={e => onOzelTarih(ozelBas, e.target.value)}
+            style={{ fontSize: 12, padding: '5px 8px' }} />
+        </div>
+      )}
+
+      <div style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 2px' }} />
+
+      {/* Kategori filtresi */}
+      <select value={seciliKategori || ''} onChange={e => onKategori(e.target.value || null)}
+        style={{ fontSize: 12, padding: '6px 10px', minWidth: 160 }}>
+        <option value="">🗂️ Tüm Kategoriler</option>
+        {kategoriler.map(k => (
+          <option key={k.id} value={k.id}>{k.emoji} {k.ad}</option>
+        ))}
+      </select>
+
+      {seciliKategori && (
+        <button onClick={() => onKategori(null)} className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}>
+          ✕ Filtreyi Temizle
+        </button>
+      )}
     </div>
   )
 }
@@ -127,13 +180,14 @@ function OzetKartlar({ ozet }) {
 
 // ─── ANA SAYFA ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const [sekme, setSekme] = useState('bugun')
+  const [sekme, setSekme] = useState('genel')
   const [loading, setLoading] = useState(false)
   const [ozet, setOzet] = useState(null)
   const [saatlik, setSaatlik] = useState([])
   const [gunluk, setGunluk] = useState([])
   const [topSatan, setTopSatan] = useState([])
   const [kategoriler, setKategoriler] = useState([])
+  const [tumKategoriler, setTumKategoriler] = useState([])
   const [masaPerf, setMasaPerf] = useState([])
   const [platformlar, setPlatformlar] = useState([])
   const [stoklar, setStoklar] = useState([])
@@ -144,55 +198,89 @@ export default function DashboardPage() {
   const [karlilik, setKarlilik] = useState(null)
   const [exportMenu, setExportMenu] = useState(false)
 
-  // Tarih aralıkları
+  // ── ORTAK FİLTRE: Hızlı tarih seçimi + özel aralık + kategori ──
   const bugun = new Date(); bugun.setHours(0,0,0,0)
-  const yarin = new Date(bugun); yarin.setDate(yarin.getDate()+1)
-  const haftaBas = new Date(bugun); haftaBas.setDate(haftaBas.getDate() - haftaBas.getDay() + 1)
-  const ayBas = new Date(bugun); ayBas.setDate(1)
-
+  const [hizliSecim, setHizliSecim] = useState('bugun')
   const [ozelBas, setOzelBas] = useState(bugun.toISOString().split('T')[0])
-  const [ozelBit, setOzelBit] = useState(yarin.toISOString().split('T')[0])
+  const [ozelBit, setOzelBit] = useState(bugun.toISOString().split('T')[0])
+  const [seciliKategori, setSeciliKategori] = useState(null)
 
   const tarihAralik = useCallback(() => {
-    if (sekme === 'bugun') return [bugun.toISOString(), yarin.toISOString()]
-    if (sekme === 'hafta') return [haftaBas.toISOString(), yarin.toISOString()]
-    if (sekme === 'ay') return [ayBas.toISOString(), yarin.toISOString()]
+    const b = new Date(); b.setHours(0,0,0,0)
+    const yarin = new Date(b); yarin.setDate(yarin.getDate()+1)
+
+    if (hizliSecim === 'bugun') return [b.toISOString(), yarin.toISOString()]
+    if (hizliSecim === 'dun') {
+      const dun = new Date(b); dun.setDate(dun.getDate()-1)
+      return [dun.toISOString(), b.toISOString()]
+    }
+    if (hizliSecim === 'hafta') {
+      const haftaBas = new Date(b); haftaBas.setDate(haftaBas.getDate() - ((haftaBas.getDay()+6)%7))
+      return [haftaBas.toISOString(), yarin.toISOString()]
+    }
+    if (hizliSecim === 'gecenHafta') {
+      const buHaftaBas = new Date(b); buHaftaBas.setDate(buHaftaBas.getDate() - ((buHaftaBas.getDay()+6)%7))
+      const gecenBas = new Date(buHaftaBas); gecenBas.setDate(gecenBas.getDate()-7)
+      return [gecenBas.toISOString(), buHaftaBas.toISOString()]
+    }
+    if (hizliSecim === 'ay') {
+      const ayBas = new Date(b); ayBas.setDate(1)
+      return [ayBas.toISOString(), yarin.toISOString()]
+    }
+    if (hizliSecim === 'gecenAy') {
+      const buAyBas = new Date(b); buAyBas.setDate(1)
+      const gecenAyBas = new Date(buAyBas); gecenAyBas.setMonth(gecenAyBas.getMonth()-1)
+      return [gecenAyBas.toISOString(), buAyBas.toISOString()]
+    }
+    // özel
     return [`${ozelBas}T00:00:00`, `${ozelBit}T23:59:59`]
-  }, [sekme, ozelBas, ozelBit])
+  }, [hizliSecim, ozelBas, ozelBit])
 
   const yukle = useCallback(async () => {
     setLoading(true)
     const [bas, bit] = tarihAralik()
+    const katId = seciliKategori || null
     try {
-      const [oz, sat, saat, gun, kat, masa, plat, stok, fat, loglar, gars, karl] = await Promise.all([
-        raporlarGelismisApi.araliklarOzet(bas, bit),
-        raporlarGelismisApi.topSatanGelismis(bas, bit),
-        raporlarGelismisApi.saatlikCiroGelismis(sekme === 'bugun' ? null : undefined),
-        raporlarGelismisApi.gunlukTrend(sekme === 'hafta' ? 7 : sekme === 'ay' ? 30 : 14),
+      const [oz, sat, saat, gun, kat, masa, plat, stok, fat, loglar, gars, karl, tumKat] = await Promise.all([
+        raporlarGelismisApi.araliklarOzet(bas, bit, katId),
+        raporlarGelismisApi.topSatanGelismis(bas, bit, 15, katId),
+        raporlarGelismisApi.saatlikCiroGelismis(hizliSecim === 'bugun' ? null : undefined),
+        raporlarGelismisApi.gunlukTrend(hizliSecim === 'hafta' || hizliSecim === 'gecenHafta' ? 7 : 30),
         raporlarGelismisApi.kategoriBazliSatis(bas, bit),
-        raporlarGelismisApi.masaPerformans(bas, bit),
+        raporlarGelismisApi.masaPerformans(bas, bit, katId),
         raporlarGelismisApi.platformKarsilastirma(bas, bit),
         raporlarGelismisApi.stokDurum(),
         raporlarGelismisApi.faturaOzeti(bas, bit),
         raporlarGelismisApi.siparisLog(bas, bit),
-        raporlarGelismisApi.garsonRaporu(bas, bit),
-        raporlarGelismisApi.karlilikRaporu(bas, bit),
+        raporlarGelismisApi.garsonRaporu(bas, bit, katId),
+        raporlarGelismisApi.karlilikRaporu(bas, bit, katId),
+        kategorilerApi.getAll(),
       ])
       setOzet(oz); setTopSatan(sat); setSaatlik(saat); setGunluk(gun)
       setKategoriler(kat); setMasaPerf(masa); setPlatformlar(plat)
       setStoklar(stok); setFaturalar(fat); setLog(loglar)
       setGarsonlar(gars); setSeciliGarson(gars[0] || null)
-      setKarlilik(karl)
+      setKarlilik(karl); setTumKategoriler(tumKat || [])
     } catch (e) { toast.error('Rapor hatası: ' + e.message) }
     finally { setLoading(false) }
-  }, [tarihAralik, sekme])
+  }, [tarihAralik, hizliSecim, seciliKategori])
 
   useEffect(() => { yukle() }, [yukle])
 
+  const onOzelTarih = (b, e) => { setOzelBas(b); setOzelBit(e); setHizliSecim('ozel') }
+
+  const filtreBasligi = () => {
+    const etiketler = { bugun:'Bugün', dun:'Dün', hafta:'Bu Hafta', gecenHafta:'Geçen Hafta', ay:'Bu Ay', gecenAy:'Geçen Ay', ozel: `${ozelBas} – ${ozelBit}` }
+    let s = etiketler[hizliSecim] || 'Bugün'
+    if (seciliKategori) {
+      const k = tumKategoriler.find(k => k.id === seciliKategori)
+      if (k) s += ` · ${k.emoji} ${k.ad}`
+    }
+    return s
+  }
+
   const baslik = {
-    bugun: `${new Date().toLocaleDateString('tr-TR', {day:'numeric',month:'long',year:'numeric'})} Raporu`,
-    hafta: 'Bu Hafta Raporu',
-    ay: `${new Date().toLocaleDateString('tr-TR', {month:'long',year:'numeric'})} Raporu`,
+    genel: 'Genel Bakış',
     urun: 'Ürün Analizi',
     kategori: 'Kategori Bazlı Satış',
     masa: 'Masa Performansı',
@@ -208,7 +296,10 @@ export default function DashboardPage() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <span style={{ fontSize: 15, fontWeight: 600 }}>{baslik[sekme] || 'Raporlar'}</span>
+        <div>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{baslik[sekme] || 'Raporlar'}</span>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{filtreBasligi()}</div>
+        </div>
         <div style={{ display: 'flex', gap: 6, position: 'relative' }}>
           <button className="btn btn-ghost btn-sm" onClick={yukle} disabled={loading}>
             <RefreshCw size={13} style={{ animation: loading ? 'spin .6s linear infinite' : 'none' }} />
@@ -230,15 +321,15 @@ export default function DashboardPage() {
               zIndex: 50, minWidth: 220, overflow: 'hidden'
             }}>
               {[
-                { label: '📄 PDF — Günlük Rapor', fn: () => exportGunlukPDF(ozet, topSatan, saatlik, baslik[sekme]) },
-                { label: '📊 Excel — Günlük Rapor', fn: () => exportGunlukExcel(ozet, topSatan, saatlik, gunluk, baslik[sekme]) },
-                { label: '👤 PDF — Garson Raporu', fn: () => exportGarsonPDF(garsonlar, baslik[sekme]) },
+                { label: '📄 PDF — Günlük Rapor', fn: () => exportGunlukPDF(ozet, topSatan, saatlik, filtreBasligi()) },
+                { label: '📊 Excel — Günlük Rapor', fn: () => exportGunlukExcel(ozet, topSatan, saatlik, gunluk, filtreBasligi()) },
+                { label: '👤 PDF — Garson Raporu', fn: () => exportGarsonPDF(garsonlar, filtreBasligi()) },
                 { label: '👤 Excel — Garson Raporu', fn: () => exportGarsonExcel(garsonlar) },
                 { label: '📦 PDF — Stok Raporu', fn: () => exportStokPDF(stoklar) },
                 { label: '📦 Excel — Stok Raporu', fn: () => exportStokExcel(stoklar) },
                 { label: '📋 Excel — İşlem Logu', fn: () => exportLogExcel(log) },
                 { label: '📋 CSV — İşlem Logu', fn: () => exportCSV(['Tarih','Masa','Tur','Tutar','Odeme','Durum'], log.map(s => [new Date(s.created_at).toLocaleString('tr-TR'), s.masa_no, s.tur, s.genel_toplam, s.odeme_yontemi||'-', s.durum]), 'Islem_Logu') },
-                { label: '📝 Word — Özet Rapor', fn: () => exportWordRapor(ozet, topSatan, garsonlar, baslik[sekme]) },
+                { label: '📝 Word — Özet Rapor', fn: () => exportWordRapor(ozet, topSatan, garsonlar, filtreBasligi()) },
               ].map(item => (
                 <button key={item.label} onClick={() => { item.fn(); setExportMenu(false) }}
                   style={{
@@ -259,29 +350,52 @@ export default function DashboardPage() {
 
       <Sekmeler aktif={sekme} onChange={s => setSekme(s)} />
 
+      <FiltreCubugu
+        hizliSecim={hizliSecim} onHizliSecim={setHizliSecim}
+        ozelBas={ozelBas} ozelBit={ozelBit} onOzelTarih={onOzelTarih}
+        kategoriler={tumKategoriler} seciliKategori={seciliKategori} onKategori={setSeciliKategori}
+      />
+
       {/* Özet kartlar — tüm sekmelerde */}
-      {['bugun','hafta','ay','urun','kategori','masa','platform','garson','karlilik'].includes(sekme) && (
+      {['genel','urun','kategori','masa','platform','garson','karlilik'].includes(sekme) && (
         <OzetKartlar ozet={ozet} />
       )}
 
-      {/* ── BUGÜN SEKMESİ ── */}
-      {sekme === 'bugun' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {/* Saatlik Ciro */}
+      {/* ── GENEL BAKIŞ SEKMESİ ── */}
+      {sekme === 'genel' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+          {/* Saatlik / günlük trend */}
           <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>Saatlik Ciro</div>
-            <BarGrafik veri={saatlik} yLabel="ciro" height={150} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-              {saatlik.filter((_,i) => i % 3 === 0).map(s => (
-                <span key={s.saat} style={{ fontSize: 10, color: 'var(--text3)' }}>{s.saat}:00</span>
-              ))}
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>
+              {hizliSecim === 'bugun' || hizliSecim === 'dun' ? 'Saatlik Ciro' : 'Günlük Ciro Trendi'}
             </div>
+            {hizliSecim === 'bugun' || hizliSecim === 'dun' ? (
+              <>
+                <BarGrafik veri={saatlik} yLabel="ciro" height={150} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                  {saatlik.filter((_,i) => i % 3 === 0).map(s => (
+                    <span key={s.saat} style={{ fontSize: 10, color: 'var(--text3)' }}>{s.saat}:00</span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <BarGrafik veri={gunluk} yLabel="ciro" height={160} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                  {gunluk.filter((_,i) => gunluk.length <= 8 || i % Math.ceil(gunluk.length/8) === 0).map(g => (
+                    <span key={g.tarih} style={{ fontSize: 9, color: 'var(--text3)' }}>
+                      {new Date(g.tarih).toLocaleDateString('tr-TR', {day:'numeric',month:'numeric'})}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* En çok satan */}
           <div className="card">
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>En Çok Satan Ürünler</div>
-            {topSatan.map((u, i) => (
+            {topSatan.slice(0, 10).map((u, i) => (
               <div key={u.ad} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '0.5px solid var(--border)' }}>
                 <span style={{ width: 18, fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>{i+1}</span>
                 <span style={{ flex: 1, fontSize: 13 }}>{u.ad}</span>
@@ -290,36 +404,6 @@ export default function DashboardPage() {
               </div>
             ))}
             {topSatan.length === 0 && <div style={{ color: 'var(--text3)', fontSize: 13 }}>Veri yok</div>}
-          </div>
-        </div>
-      )}
-
-      {/* ── HAFTA / AY SEKMESİ ── */}
-      {['hafta','ay'].includes(sekme) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-          <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12 }}>
-              Günlük Ciro Trendi
-            </div>
-            <BarGrafik veri={gunluk} yLabel="ciro" height={160} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-              {gunluk.filter((_,i) => sekme === 'hafta' || i % 5 === 0).map(g => (
-                <span key={g.tarih} style={{ fontSize: 9, color: 'var(--text3)' }}>
-                  {new Date(g.tarih).toLocaleDateString('tr-TR', {day:'numeric',month:'numeric'})}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Özet</div>
-            {gunluk.map(g => (
-              <div key={g.tarih} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid var(--border)', fontSize: 12 }}>
-                <span style={{ color: 'var(--text2)' }}>{tarihStr(g.tarih)}</span>
-                <span style={{ color: 'var(--text2)', marginRight: 8 }}>{g.siparis} sip.</span>
-                <span style={{ fontWeight: 600, color: g.ciro > 0 ? 'var(--accent)' : 'var(--text3)' }}>{para(g.ciro)}</span>
-              </div>
-            ))}
           </div>
         </div>
       )}
