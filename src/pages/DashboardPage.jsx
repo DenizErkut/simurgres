@@ -164,7 +164,7 @@ export default function DashboardPage() {
     setLoading(true)
     const [bas, bit] = tarihAralik()
     try {
-      const [oz, sat, saat, gun, kat, masa, plat, stok, fat, loglar, gars] = await Promise.all([
+      const [oz, sat, saat, gun, kat, masa, plat, stok, fat, loglar, gars, karl] = await Promise.all([
         raporlarGelismisApi.araliklarOzet(bas, bit),
         raporlarGelismisApi.topSatanGelismis(bas, bit),
         raporlarGelismisApi.saatlikCiroGelismis(sekme === 'bugun' ? null : undefined),
