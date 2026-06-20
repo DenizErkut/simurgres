@@ -8,7 +8,17 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
 
   const kaydet = async () => {
     if (!form.ad || !form.fiyat) { toast.error('Ad ve fiyat zorunlu'); return }
-    await onKaydet({ ...form, fiyat: parseFloat(form.fiyat) })
+    // Sadece urunler tablosunda var olan kolonları gönder (join'den gelen
+    // 'kategoriler' nesnesi gibi ekstra alanlar update'i bozuyordu)
+    const temizForm = {
+      ad: form.ad,
+      fiyat: parseFloat(form.fiyat),
+      emoji: form.emoji,
+      kategori_id: form.kategori_id,
+      aciklama: form.aciklama || null,
+      yazici_id: form.yazici_id || null,
+    }
+    await onKaydet(temizForm)
   }
 
   return (
@@ -99,7 +109,7 @@ export default function MenuPage() {
       setModal(null)
       yukle()
     } catch (e) {
-      toast.error('Kaydedilemedi')
+      toast.error('Kaydedilemedi: ' + e.message)
     }
   }
 

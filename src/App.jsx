@@ -19,6 +19,7 @@ import YaziciPage from './pages/YaziciPage'
 import YaziciYonlendirmePage from './pages/YaziciYonlendirmePage'
 import FaturaPage from './pages/FaturaPage'
 import StokPage from './pages/StokPage'
+import CariPage from './pages/CariPage'
 import ZRaporuPage from './pages/ZRaporuPage'
 import RecetePage from './pages/RecetePage'
 import { PinOnayProvider } from './contexts/PinOnayContext'
@@ -73,6 +74,7 @@ const NAV = [
     items: [
       { id: 'stok',   label: 'Stok Durumu',  icon: 'ti-package',      component: StokPage,   roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'stok_goruntule' },
       { id: 'fatura', label: 'Fatura Girişi', icon: 'ti-file-invoice', component: FaturaPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'fatura_goruntule' },
+      { id: 'cari',   label: 'Cari Hesaplar', icon: 'ti-users',        component: CariPage,   roller: [ROL.YONETICI], renk: '#534AB7', bg: '#EEEBFA', izin: null },
     ]
   },
   {
