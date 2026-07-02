@@ -2,9 +2,26 @@ import { useState, useEffect, useCallback } from 'react'
 import { urunlerApi, kategorilerApi } from '../lib/supabase'
 import toast from 'react-hot-toast'
 import { Plus, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
+import ResimYukleyici from '../components/ResimYukleyici'
+import { supabase } from '../lib/supabase'
 
 function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
   const [form, setForm] = useState(urun || { ad: '', fiyat: '', emoji: '🍽️', kategori_id: kategoriler[0]?.id || '', aciklama: '', aktif: true, yazici_id: '' })
+  const [anaResim, setAnaResim] = useState(urun?.resim_url || null)
+  const [galeri, setGaleri] = useState([])
+  const [galeriYuklendi, setGaleriYuklendi] = useState(false)
+
+  // Galeri resimlerini yükle (sadece kayıtlı ürünler için)
+  useEffect(() => {
+    if (urun?.id && !galeriYuklendi) {
+      supabase.from('urun_resimleri')
+        .select('id, url, sira, boyut_kb')
+        .eq('urun_id', urun.id)
+        .gt('sira', 0)
+        .order('sira')
+        .then(({ data }) => { setGaleri(data || []); setGaleriYuklendi(true) })
+    }
+  }, [urun?.id, galeriYuklendi])
 
   const kaydet = async () => {
     if (!form.ad || !form.fiyat) { toast.error('Ad ve fiyat zorunlu'); return }
@@ -17,6 +34,20 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
       kategori_id: form.kategori_id,
       aciklama: form.aciklama || null,
       yazici_id: form.yazici_id || null,
+      resim_url: form.resim_url !== undefined ? form.resim_url : (urun?.resim_url || null),
+      kalori:        form.kalori        ? parseFloat(form.kalori)        : null,
+      porsiyon_gram: form.porsiyon_gram ? parseInt(form.porsiyon_gram)   : null,
+      protein:       form.protein       ? parseFloat(form.protein)       : null,
+      yag:           form.yag           ? parseFloat(form.yag)           : null,
+      doymus_yag:    form.doymus_yag    ? parseFloat(form.doymus_yag)    : null,
+      karbonhidrat:  form.karbonhidrat  ? parseFloat(form.karbonhidrat)  : null,
+      seker:         form.seker         ? parseFloat(form.seker)         : null,
+      tuz:           form.tuz           ? parseFloat(form.tuz)           : null,
+      alerjenler:    form.alerjenler    || [],
+      vejetaryen:    !!form.vejetaryen,
+      vegan:         !!form.vegan,
+      glutensiz:     !!form.glutensiz,
+      laktozsuz:     !!form.laktozsuz,
     }
     await onKaydet(temizForm)
   }
@@ -33,6 +64,9 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
           <div className="form-row">
             <label>Fiyat (₺)</label>
             <input type="number" value={form.fiyat} onChange={e => setForm(f => ({ ...f, fiyat: e.target.value }))} />
+            <span style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3, display: 'block' }}>
+              -1 girilirse: garson sipariş anında fiyatı kendisi belirler (açık fiyat)
+            </span>
           </div>
         </div>
         <div className="form-row">
@@ -61,6 +95,73 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
             </span>
           </div>
         )}
+
+        {/* ── RESİM YÖNETİMİ ── */}
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+          <ResimYukleyici
+            urunId={urun?.id}
+            mevcutUrl={anaResim}
+            galeri={galeri}
+            onAnaResim={url => { setAnaResim(url); setForm(f => ({ ...f, resim_url: url })) }}
+            onGaleriGuncelle={setGaleri}
+            sadeceTek={false}
+            maxKB={800}
+          />
+        </div>
+
+        {/* ── BESİN DEĞERLERİ — 1 Tem. 2026 Zorunlu ── */}
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 10 }}>
+            🥗 Besin Değerleri <span style={{ fontWeight:400, color:'var(--text3)' }}>(1 Tem. 2026 zorunlu)</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+            {[
+              { key:'kalori',        label:'Kalori (kcal)' },
+              { key:'porsiyon_gram', label:'Porsiyon (g)'  },
+              { key:'protein',       label:'Protein (g)'   },
+              { key:'yag',           label:'Yağ (g)'       },
+              { key:'doymus_yag',    label:'Doymuş Yağ (g)'},
+              { key:'karbonhidrat',  label:'Karbonhidrat (g)'},
+              { key:'seker',         label:'Şeker (g)'     },
+              { key:'tuz',           label:'Tuz (g)'       },
+            ].map(a => (
+              <div key={a.key}>
+                <label style={{ fontSize:10, color:'var(--text2)' }}>{a.label}</label>
+                <input type="number" step="0.1" value={form[a.key] || ''}
+                  onChange={e => setForm(f => ({...f, [a.key]: e.target.value}))}
+                  style={{ fontSize:12, padding:'4px 6px' }} placeholder="—" />
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize:10, color:'var(--text2)', display:'block', marginBottom:5 }}>Alerjenler (⚠️ zorunlu işaretleme)</label>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+              {[['gluten','Gluten'],['sut','Süt'],['yumurta','Yumurta'],['balik','Balık'],
+                ['kabuklu_deniz','Kabuklu Deniz'],['yer_fistigi','Yer Fıstığı'],['soya','Soya'],
+                ['findik','Fındık'],['kereviz','Kereviz'],['hardal','Hardal'],
+                ['susam','Susam'],['kukurtdioksit','SO₂/Sülfit']].map(([k, l]) => {
+                const sec = (form.alerjenler||[]).includes(k)
+                return <button key={k} type="button" onClick={() => setForm(f => ({
+                    ...f, alerjenler: sec ? (f.alerjenler||[]).filter(a=>a!==k) : [...(f.alerjenler||[]),k]
+                  }))} style={{
+                  padding:'2px 8px', borderRadius:14, fontSize:11, cursor:'pointer',
+                  background: sec ? 'var(--red-light)' : 'var(--surface2)',
+                  color: sec ? 'var(--red)' : 'var(--text3)',
+                  border: sec ? '1px solid var(--red)' : '1px solid var(--border)',
+                  fontWeight: sec ? 600 : 400
+                }}>{sec?'⚠️ ':''}{l}</button>
+              })}
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+            {[['vejetaryen','🌿 Vejetaryen'],['vegan','🌱 Vegan'],['glutensiz','🚫G Glutensiz'],['laktozsuz','🥛 Laktozsuz']].map(([k,l]) => (
+              <label key={k} style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, cursor:'pointer' }}>
+                <input type="checkbox" checked={!!form[k]} onChange={e => setForm(f=>({...f,[k]:e.target.checked}))} />
+                {l}
+              </label>
+            ))}
+          </div>
+        </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onKapat}>İptal</button>
           <button className="btn btn-primary" onClick={kaydet}>Kaydet</button>

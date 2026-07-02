@@ -21,6 +21,8 @@ import YaziciYonlendirmePage from './pages/YaziciYonlendirmePage'
 import FaturaPage from './pages/FaturaPage'
 import StokPage from './pages/StokPage'
 import CariPage from './pages/CariPage'
+import QRYonetimPage from './pages/QRYonetimPage'
+import QRMenuPage from './pages/QRMenuPage'
 import ZRaporuPage from './pages/ZRaporuPage'
 import RecetePage from './pages/RecetePage'
 import { PinOnayProvider } from './contexts/PinOnayContext'
@@ -77,6 +79,7 @@ const NAV = [
       { id: 'stok',   label: 'Stok Durumu',  icon: 'ti-package',      component: StokPage,   roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'stok_goruntule' },
       { id: 'fatura', label: 'Fatura Girişi', icon: 'ti-file-invoice', component: FaturaPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'fatura_goruntule' },
       { id: 'cari',   label: 'Cari Hesaplar', icon: 'ti-users',        component: CariPage,   roller: [ROL.YONETICI], renk: '#534AB7', bg: '#EEEBFA', izin: null },
+      { id: 'qr',     label: 'QR Menü',       icon: 'ti-qrcode',       component: QRYonetimPage, roller: [ROL.YONETICI], renk: '#1D9E75', bg: '#E3F5EE', izin: null },
     ]
   },
   {
@@ -108,6 +111,11 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
 
   const grupToggle = (grup) => setAcikGruplar(p => ({ ...p, [grup]: !p[grup] }))
 
+  // QR menü — public route, auth gerektirmez
+  if (window.location.pathname.startsWith('/menu/')) {
+    return <QRMenuPage />
+  }
+
   return (
     <div style={{
       width: 220, background: 'var(--surface)', borderRight: '0.5px solid var(--border)',
@@ -134,7 +142,12 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
 
           const yonetimGrubu = ['Raporlar','Menü','Stok','Sistem'].includes(grup.grup)
 
-          return (
+          // QR menü — public route, auth gerektirmez
+  if (window.location.pathname.startsWith('/menu/')) {
+    return <QRMenuPage />
+  }
+
+  return (
             <div key={grup.grup} style={{ marginBottom: 2 }}>
               {/* Grup başlığı */}
               <button
@@ -156,7 +169,12 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
               {/* Items */}
               {(!yonetimGrubu || acikGruplar[grup.grup]) && gorunurItems.map(item => {
                 const isActive = aktif === item.id
-                return (
+                // QR menü — public route, auth gerektirmez
+  if (window.location.pathname.startsWith('/menu/')) {
+    return <QRMenuPage />
+  }
+
+  return (
                   <button key={item.id}
                     onClick={() => setAktif(item.id)}
                     style={{
@@ -260,6 +278,11 @@ function AppInner() {
 
   const mobilSekimDegistir = (id) => { setAktif(id); setMenuAcik(false) }
 
+  // QR menü — public route, auth gerektirmez
+  if (window.location.pathname.startsWith('/menu/')) {
+    return <QRMenuPage />
+  }
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* Mobil overlay */}
@@ -291,6 +314,11 @@ function AppInner() {
 }
 
 export default function App() {
+  // QR menü — public route, auth gerektirmez
+  if (window.location.pathname.startsWith('/menu/')) {
+    return <QRMenuPage />
+  }
+
   return (
     <AuthProvider>
       <IzinProvider>
