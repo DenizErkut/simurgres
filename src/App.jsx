@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth, ROL } from './contexts/AuthContext'
 import { IzinProvider, useIzin } from './contexts/IzinContext'
+import { PinOnayProvider } from './contexts/PinOnayContext'
+import { TenantProvider, useTenant } from './contexts/TenantContext'
+import { setTenantId } from './lib/supabase_tenant'
 import LoginPage from './pages/LoginPage'
 import GarsonPage from './pages/GarsonPage'
 import KDSPage from './pages/KDSPage'
@@ -25,13 +28,12 @@ import QRYonetimPage from './pages/QRYonetimPage'
 import QRMenuPage from './pages/QRMenuPage'
 import ZRaporuPage from './pages/ZRaporuPage'
 import RecetePage from './pages/RecetePage'
-import { PinOnayProvider } from './contexts/PinOnayContext'
 import './index.css'
 
-const ROL_RENK = { garson: '#1D9E75', kasiyer: '#BA7517', yonetici: '#D85A30' }
-const ROL_ETIKET = { garson: 'Garson', kasiyer: 'Kasiyer', yonetici: 'Yönetici' }
+const ROL_RENK   = { garson: '#1D9E75', kasiyer: '#BA7517', yonetici: '#D85A30' }
+const ROL_ETIKET = { garson: 'Garson',  kasiyer: 'Kasiyer', yonetici: 'Yönetici' }
 
-// ─── NAV YAPISI ──────────────────────────────────────────────────────────────
+// ─── NAV YAPISI ──────────────────────────────────────────────
 const NAV = [
   {
     grup: 'Operasyon',
@@ -57,8 +59,8 @@ const NAV = [
     roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
     izin: 'rapor_gunluk',
     items: [
-      { id: 'rapor', label: 'Günlük Rapor', icon: 'ti-chart-bar', component: DashboardPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB', izin: 'rapor_gunluk' },
-      { id: 'z_raporu', label: 'Z Raporu', icon: 'ti-file-invoice', component: ZRaporuPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#D85A30', bg: '#FAECE7', izin: 'rapor_gunluk' },
+      { id: 'rapor',    label: 'Günlük Rapor', icon: 'ti-chart-bar',    component: DashboardPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB', izin: 'rapor_gunluk' },
+      { id: 'z_raporu', label: 'Z Raporu',     icon: 'ti-file-invoice', component: ZRaporuPage,   roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#D85A30', bg: '#FAECE7', izin: 'rapor_gunluk' },
     ]
   },
   {
@@ -66,9 +68,9 @@ const NAV = [
     roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
     izin: 'menu_duzenle',
     items: [
-      { id: 'menu',   label: 'Ürünler',    icon: 'ti-soup',       component: MenuPage,    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'menu_duzenle' },
-      { id: 'fiyat',  label: 'Fiyat Güncelle', icon: 'ti-currency-lira', component: FiyatGuncellePage, roller: [ROL.YONETICI], renk: '#BA7517', bg: '#FBF1E3', izin: null },
-      { id: 'recete', label: 'Reçeteler',  icon: 'ti-git-branch', component: RecetePage,  roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'recete_goruntule' },
+      { id: 'menu',   label: 'Ürünler',         icon: 'ti-soup',             component: MenuPage,          roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'menu_duzenle' },
+      { id: 'fiyat',  label: 'Fiyat Güncelle',  icon: 'ti-currency-lira',    component: FiyatGuncellePage, roller: [ROL.YONETICI],                           renk: '#BA7517', bg: '#FBF1E3', izin: null },
+      { id: 'recete', label: 'Reçeteler',        icon: 'ti-git-branch',       component: RecetePage,        roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#534AB7', bg: '#EEEDFE', izin: 'recete_goruntule' },
     ]
   },
   {
@@ -76,25 +78,26 @@ const NAV = [
     roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI],
     izin: 'stok_goruntule',
     items: [
-      { id: 'stok',   label: 'Stok Durumu',  icon: 'ti-package',      component: StokPage,   roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'stok_goruntule' },
-      { id: 'fatura', label: 'Fatura Girişi', icon: 'ti-file-invoice', component: FaturaPage, roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'fatura_goruntule' },
-      { id: 'cari',   label: 'Cari Hesaplar', icon: 'ti-users',        component: CariPage,   roller: [ROL.YONETICI], renk: '#534AB7', bg: '#EEEBFA', izin: null },
-      { id: 'qr',     label: 'QR Menü',       icon: 'ti-qrcode',       component: QRYonetimPage, roller: [ROL.YONETICI], renk: '#1D9E75', bg: '#E3F5EE', izin: null },
+      { id: 'stok',   label: 'Stok Durumu',  icon: 'ti-package',      component: StokPage,      roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'stok_goruntule' },
+      { id: 'fatura', label: 'Fatura Girişi', icon: 'ti-file-invoice', component: FaturaPage,    roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#639922', bg: '#EAF3DE', izin: 'fatura_goruntule' },
+      { id: 'cari',   label: 'Cari Hesaplar', icon: 'ti-users',        component: CariPage,      roller: [ROL.YONETICI],                           renk: '#534AB7', bg: '#EEEBFA', izin: null },
+      { id: 'qr',     label: 'QR Menü',       icon: 'ti-qrcode',       component: QRYonetimPage, roller: [ROL.YONETICI],                           renk: '#1D9E75', bg: '#E3F5EE', izin: null },
     ]
   },
   {
     grup: 'Sistem',
     roller: [ROL.YONETICI],
     items: [
-      { id: 'yonetim',           label: 'Salonlar & Masalar', icon: 'ti-layout-sidebar',  component: YonetimPage,            roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
-      { id: 'kullanicilar',      label: 'Kullanıcılar',       icon: 'ti-users',            component: KullanicilarPage,       roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
-      { id: 'yazici',            label: 'Yazıcılar',          icon: 'ti-printer',          component: YaziciPage,             roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
-      { id: 'yazici_yonlendirme',label: 'Yönlendirme',        icon: 'ti-arrow-fork',       component: YaziciYonlendirmePage,  roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
-      { id: 'okc',               label: 'ÖKC / ECR',          icon: 'ti-device-desktop',   component: OKCPage,                roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
+      { id: 'yonetim',            label: 'Salonlar & Masalar', icon: 'ti-layout-sidebar', component: YonetimPage,           roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
+      { id: 'kullanicilar',       label: 'Kullanıcılar',       icon: 'ti-users',          component: KullanicilarPage,      roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
+      { id: 'yazici',             label: 'Yazıcılar',          icon: 'ti-printer',        component: YaziciPage,            roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
+      { id: 'yazici_yonlendirme', label: 'Yönlendirme',        icon: 'ti-arrow-fork',     component: YaziciYonlendirmePage, roller: [ROL.YONETICI], renk: '#185FA5', bg: '#E6F1FB' },
+      { id: 'okc',                label: 'ÖKC / ECR',          icon: 'ti-device-desktop', component: OKCPage,               roller: [ROL.YONETICI], renk: '#444441', bg: '#F1EFE8' },
     ]
   },
 ]
 
+// ─── SAAT ────────────────────────────────────────────────────
 function Clock() {
   const [saat, setSaat] = useState('')
   useEffect(() => {
@@ -104,23 +107,19 @@ function Clock() {
   return <span style={{ fontSize: 12, color: 'var(--text2)', fontVariantNumeric: 'tabular-nums' }}>{saat}</span>
 }
 
+// ─── SIDEBAR ─────────────────────────────────────────────────
 function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
   const { izinVar } = useIzin()
   const { cikisYap } = useAuth()
   const [acikGruplar, setAcikGruplar] = useState({ Raporlar: true, Menü: true, Stok: false, Sistem: false })
-
-  const grupToggle = (grup) => setAcikGruplar(p => ({ ...p, [grup]: !p[grup] }))
-
-  // QR menü — public route, auth gerektirmez
-  if (window.location.pathname.startsWith('/menu/')) {
-    return <QRMenuPage />
-  }
+  const grupToggle = (g) => setAcikGruplar(p => ({ ...p, [g]: !p[g] }))
 
   return (
     <div style={{
       width: 220, background: 'var(--surface)', borderRight: '0.5px solid var(--border)',
       display: 'flex', flexDirection: 'column', height: '100vh', flexShrink: 0, overflow: 'hidden'
     }} className={`sidebar ${menuAcik ? 'sidebar-acik' : ''}`}>
+
       {/* Logo */}
       <div style={{ padding: '16px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#D85A30', flexShrink: 0 }} />
@@ -131,7 +130,6 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {NAV.map(grup => {
           if (!grup.roller.includes(kullanici.rol)) return null
-          // Grup için izin kontrolü — yönetici hep görür, diğerleri izne göre
           if (grup.izin && kullanici.rol !== ROL.YONETICI && !izinVar(grup.izin)) return null
 
           const gorunurItems = grup.items.filter(item =>
@@ -142,14 +140,8 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
 
           const yonetimGrubu = ['Raporlar','Menü','Stok','Sistem'].includes(grup.grup)
 
-          // QR menü — public route, auth gerektirmez
-  if (window.location.pathname.startsWith('/menu/')) {
-    return <QRMenuPage />
-  }
-
-  return (
+          return (
             <div key={grup.grup} style={{ marginBottom: 2 }}>
-              {/* Grup başlığı */}
               <button
                 onClick={() => yonetimGrubu && grupToggle(grup.grup)}
                 style={{
@@ -162,19 +154,13 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
                 </span>
                 {yonetimGrubu && (
                   <i className={`ti ${acikGruplar[grup.grup] ? 'ti-chevron-down' : 'ti-chevron-right'}`}
-                    style={{ fontSize: 12, color: 'var(--text3)' }} aria-hidden="true" />
+                    style={{ fontSize: 12, color: 'var(--text3)' }} />
                 )}
               </button>
 
-              {/* Items */}
               {(!yonetimGrubu || acikGruplar[grup.grup]) && gorunurItems.map(item => {
                 const isActive = aktif === item.id
-                // QR menü — public route, auth gerektirmez
-  if (window.location.pathname.startsWith('/menu/')) {
-    return <QRMenuPage />
-  }
-
-  return (
+                return (
                   <button key={item.id}
                     onClick={() => setAktif(item.id)}
                     style={{
@@ -189,13 +175,12 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
                     }}
                     onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.color = 'var(--text)' }}}
                     onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)' }}}>
-                    <i className={`ti ${item.icon}`} style={{ fontSize: 16, width: 18, textAlign: 'center', flexShrink: 0 }} aria-hidden="true" />
+                    <i className={`ti ${item.icon}`} style={{ fontSize: 16, width: 18, textAlign: 'center', flexShrink: 0 }} />
                     {item.label}
                   </button>
                 )
               })}
 
-              {/* Divider */}
               {['Operasyon','Platformlar'].includes(grup.grup) && (
                 <div style={{ height: '0.5px', background: 'var(--border)', margin: '6px 0' }} />
               )}
@@ -224,7 +209,7 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
         </div>
         <div style={{ padding: '0 8px 8px' }}>
           <button
-            onClick={() => { if(window.confirm('Çıkış yapmak istiyor musunuz?')) cikisYap() }}
+            onClick={() => { if (window.confirm('Çıkış yapmak istiyor musunuz?')) cikisYap() }}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               padding: '7px 0', borderRadius: 6, border: '0.5px solid var(--border-md)',
@@ -233,7 +218,7 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-light)'; e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--red)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)'; e.currentTarget.style.borderColor = 'var(--border-md)' }}>
-            <i className="ti ti-logout" style={{ fontSize: 14 }} aria-hidden="true" />
+            <i className="ti ti-logout" style={{ fontSize: 14 }} />
             Çıkış Yap
           </button>
         </div>
@@ -242,13 +227,13 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
   )
 }
 
+// ─── UYGULAMA İÇERİĞİ ────────────────────────────────────────
 function AppInner() {
-  const { kullanici, yukleniyor, cikisYap } = useAuth()
+  const { kullanici, yukleniyor } = useAuth()
   const { izinVar } = useIzin()
   const [aktif, setAktif] = useState(null)
   const [menuAcik, setMenuAcik] = useState(false)
 
-  // İlk ekranı bul
   useEffect(() => {
     if (!kullanici || aktif) return
     for (const grup of NAV) {
@@ -269,7 +254,6 @@ function AppInner() {
 
   if (!kullanici) return <LoginPage />
 
-  // Aktif component bul
   let AktifEkran = null
   for (const grup of NAV) {
     const item = grup.items.find(i => i.id === aktif)
@@ -278,25 +262,17 @@ function AppInner() {
 
   const mobilSekimDegistir = (id) => { setAktif(id); setMenuAcik(false) }
 
-  // QR menü — public route, auth gerektirmez
-  if (window.location.pathname.startsWith('/menu/')) {
-    return <QRMenuPage />
-  }
-
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      {/* Mobil overlay */}
       {menuAcik && (
         <div onClick={() => setMenuAcik(false)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          zIndex: 90, display: 'none'
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 90, display: 'none'
         }} className="mobil-overlay" />
       )}
 
       <Sidebar aktif={aktif} setAktif={mobilSekimDegistir} kullanici={kullanici} menuAcik={menuAcik} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Mobil topbar */}
         <div className="mobil-topbar">
           <button onClick={() => setMenuAcik(a => !a)} className="hamburger-btn">
             <span /><span /><span />
@@ -313,7 +289,14 @@ function AppInner() {
   )
 }
 
-export default function App() {
+// ─── TENANT KATMANI ───────────────────────────────────────────
+function AppIleTenant() {
+  const tenant = useTenant()
+
+  useEffect(() => {
+    if (tenant?.id) setTenantId(tenant.id)
+  }, [tenant?.id])
+
   // QR menü — public route, auth gerektirmez
   if (window.location.pathname.startsWith('/menu/')) {
     return <QRMenuPage />
@@ -323,10 +306,22 @@ export default function App() {
     <AuthProvider>
       <IzinProvider>
         <PinOnayProvider>
-        <Toaster position="bottom-right" toastOptions={{ duration: 3000, style: { fontFamily: 'Inter, sans-serif', fontSize: 13 } }} />
-        <AppInner />
+          <Toaster
+            position="bottom-right"
+            toastOptions={{ duration: 3000, style: { fontFamily: 'Inter, sans-serif', fontSize: 13 } }}
+          />
+          <AppInner />
         </PinOnayProvider>
       </IzinProvider>
     </AuthProvider>
+  )
+}
+
+// ─── ROOT ─────────────────────────────────────────────────────
+export default function App() {
+  return (
+    <TenantProvider>
+      <AppIleTenant />
+    </TenantProvider>
   )
 }
