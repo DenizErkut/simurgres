@@ -12,12 +12,17 @@ const TenantCtx = createContext(null)
 
 function slugBul() {
   const host = window.location.hostname
-  // localhost veya simurgres.vercel.app → default
-  if (host === 'localhost' || host.includes('vercel.app') || host.includes('simurgres.com') === false) {
-    return 'default'
-  }
+  // localhost, simurgres.vercel.app, veya simurgres.com ana domain → default
+  if (
+    host === 'localhost' ||
+    host === 'simurgres.vercel.app' ||
+    host === 'simurgres.com' ||
+    host === 'www.simurgres.com'
+  ) return 'default'
   // anteplioglu.simurgres.com → 'anteplioglu'
-  return host.split('.')[0]
+  const parts = host.split('.')
+  if (parts.length >= 3) return parts[0]
+  return 'default'
 }
 
 export function TenantProvider({ children }) {
