@@ -1,9 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
+import { tenantFrom } from './supabase_tenant'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+// Tenant-aware from() — tüm sorgular bu üzerinden gider
+// Tenant ID set edilmişse otomatik filtre ekler, yoksa normal çalışır
+const tFrom = (tablo) => tenantFrom(supabase, tablo)
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 export const authApi = {
@@ -170,7 +175,7 @@ export const urunlerApi = {
   async topluFiyatGuncelle(degisiklikler) {
     const sonuclar = []
     for (const d of degisiklikler) {
-      const { error } = await supabase.from('urunler').update({ fiyat: d.fiyat }).eq('id', d.id)
+      const { error } = await tFrom('urunler').update({ fiyat: d.fiyat }).eq('id', d.id)
       if (error) { sonuclar.push({ id: d.id, basarili: false, hata: error.message }) }
       else sonuclar.push({ id: d.id, basarili: true })
     }
@@ -229,7 +234,7 @@ export const siparislerApi = {
     if (tumKalemler) {
       const toplam = tumKalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
       const kdv_tutar = +(toplam * 10 / 110).toFixed(2)  // iç KDV (fiyatlar zaten KDV dahil)
-      await supabase.from('siparisler').update({
+      await tFrom('siparisler').update({
         toplam, kdv_tutar, genel_toplam: +(toplam + kdv_tutar).toFixed(2)
       }).eq('id', hedefSiparis.id)
     }
@@ -243,11 +248,11 @@ export const siparislerApi = {
       .limit(1)
 
     if (mevcutKds && mevcutKds.length > 0) {
-      await supabase.from('kds_bildirimler')
+      await tFrom('kds_bildirimler')
         .update({ durum: 'yeni', updated_at: new Date().toISOString() })
         .eq('id', mevcutKds[0].id)
     } else {
-      await supabase.from('kds_bildirimler').insert({
+      await tFrom('kds_bildirimler').insert({
         siparis_id: hedefSiparis.id,
         masa_no: siparis.masa_no,
         durum: 'yeni'
@@ -385,12 +390,12 @@ export const stokApi = {
         const yeniStok = Math.max(0, (hammadde.stok_miktari || 0) - netMiktar)
 
         // Stoku güncelle
-        await supabase.from('hammaddeler')
+        await tFrom('hammaddeler')
           .update({ stok_miktari: yeniStok })
           .eq('id', r.hammadde_id)
 
         // Hareket logu
-        await supabase.from('stok_hareketleri').insert({
+        await tFrom('stok_hareketleri').insert({
           hammadde_id: r.hammadde_id,
           hareket_tipi: 'cikis',
           miktar: netMiktar,
@@ -494,7 +499,7 @@ export const raporlarGelismisApi = {
   async araliklarOzet(baslangic, bitis, kategoriId = null) {
     if (kategoriId) {
       // Kategori filtresi varsa kalem bazlı hesapla
-      const { data: kalemler } = await supabase.from('siparis_kalemleri')
+      const { data: kalemler } = await tFrom('siparis_kalemleri')
         .select('urun_fiyat, adet, urunler!inner(kategori_id), siparisler!inner(genel_toplam, odeme_yontemi, created_at, tur, durum, id)')
         .eq('siparisler.durum', 'odendi')
         .eq('urunler.kategori_id', kategoriId)
@@ -511,7 +516,7 @@ export const raporlarGelismisApi = {
         kategoriFiltreli: true
       }
     }
-    const { data } = await supabase.from('siparisler')
+    const { data } = await tFrom('siparisler')
       .select('genel_toplam, odeme_yontemi, created_at, masa_no, tur')
       .eq('durum', 'odendi')
       .gte('created_at', baslangic).lt('created_at', bitis)
@@ -534,7 +539,7 @@ export const raporlarGelismisApi = {
     const gun = tarih ? new Date(tarih) : new Date()
     gun.setHours(0,0,0,0)
     const ertesi = new Date(gun); ertesi.setDate(ertesi.getDate()+1)
-    const { data } = await supabase.from('siparisler')
+    const { data } = await tFrom('siparisler')
       .select('genel_toplam, created_at')
       .eq('durum', 'odendi')
       .gte('created_at', gun.toISOString())
@@ -552,7 +557,7 @@ export const raporlarGelismisApi = {
   async gunlukTrend(gunSayisi = 14) {
     const bitis = new Date(); bitis.setHours(23,59,59,999)
     const baslangic = new Date(); baslangic.setDate(baslangic.getDate() - gunSayisi + 1); baslangic.setHours(0,0,0,0)
-    const { data } = await supabase.from('siparisler')
+    const { data } = await tFrom('siparisler')
       .select('genel_toplam, created_at')
       .eq('durum', 'odendi')
       .gte('created_at', baslangic.toISOString())
@@ -572,7 +577,7 @@ export const raporlarGelismisApi = {
 
   // Kategori bazlı satış analizi
   async kategoriBazliSatis(baslangic, bitis, kategoriId = null) {
-    let q = supabase.from('siparis_kalemleri')
+    let q = tFrom('siparis_kalemleri')
       .select('urun_ad, urun_fiyat, adet, urunler!inner(kategori_id, kategoriler(ad, emoji)), siparisler!inner(created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
@@ -592,7 +597,7 @@ export const raporlarGelismisApi = {
 
   // En çok satan ürünler (tarih aralıklı)
   async topSatanGelismis(baslangic, bitis, limit = 15, kategoriId = null) {
-    let q = supabase.from('siparis_kalemleri')
+    let q = tFrom('siparis_kalemleri')
       .select('urun_ad, urun_fiyat, adet, urun_id, urunler!inner(kategori_id), siparisler!inner(created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
@@ -610,7 +615,7 @@ export const raporlarGelismisApi = {
 
   // İade raporu
   async iadeRaporu(baslangic, bitis) {
-    const { data } = await supabase.from('stok_hareketleri')
+    const { data } = await tFrom('stok_hareketleri')
       .select('*')
       .eq('hareket_tipi', 'iade')
       .gte('created_at', baslangic).lt('created_at', bitis)
@@ -620,7 +625,7 @@ export const raporlarGelismisApi = {
 
   // Masa transfer / birleştirme logları
   async islemLoglari(baslangic, bitis) {
-    const { data } = await supabase.from('pin_override_log')
+    const { data } = await tFrom('pin_override_log')
       .select('*, kullanicilar!yapan_kullanici_id(ad_soyad, kullanici_adi), onaylayan:kullanicilar!onaylayan_kullanici_id(ad_soyad)')
       .gte('created_at', baslangic).lt('created_at', bitis)
       .order('created_at', { ascending: false })
@@ -629,7 +634,7 @@ export const raporlarGelismisApi = {
 
   // Tüm sipariş hareketleri (genel log)
   async siparisLog(baslangic, bitis) {
-    const { data } = await supabase.from('siparisler')
+    const { data } = await tFrom('siparisler')
       .select('id, masa_no, durum, genel_toplam, odeme_yontemi, tur, created_at')
       .gte('created_at', baslangic).lt('created_at', bitis)
       .order('created_at', { ascending: false })
@@ -639,7 +644,7 @@ export const raporlarGelismisApi = {
 
   // Stok durum raporu
   async stokDurum() {
-    const { data } = await supabase.from('hammaddeler')
+    const { data } = await tFrom('hammaddeler')
       .select('*').eq('aktif', true).order('stok_miktari')
     return (data || []).map(h => ({
       ...h,
@@ -650,7 +655,7 @@ export const raporlarGelismisApi = {
 
   // Stok hareket raporu
   async stokHareketRaporu(baslangic, bitis) {
-    const { data } = await supabase.from('stok_hareketleri')
+    const { data } = await tFrom('stok_hareketleri')
       .select('*, hammaddeler(ad, birim, maliyet_fiyat)')
       .gte('created_at', baslangic).lt('created_at', bitis)
       .order('created_at', { ascending: false })
@@ -659,7 +664,7 @@ export const raporlarGelismisApi = {
 
   // Fatura özeti
   async faturaOzeti(baslangic, bitis) {
-    const { data } = await supabase.from('faturalar')
+    const { data } = await tFrom('faturalar')
       .select('*, fatura_kalemleri(count)')
       .gte('tarih', baslangic.split('T')[0]).lte('tarih', bitis.split('T')[0])
       .order('tarih', { ascending: false })
@@ -672,7 +677,7 @@ export const raporlarGelismisApi = {
   async masaPerformans(baslangic, bitis, kategoriId = null) {
     if (kategoriId) {
       // Kategori filtreliyse kalem bazlı hesapla
-      const { data: kalemler } = await supabase.from('siparis_kalemleri')
+      const { data: kalemler } = await tFrom('siparis_kalemleri')
         .select('urun_fiyat, adet, urunler!inner(kategori_id), siparisler!inner(masa_no, created_at, durum)')
         .eq('siparisler.durum', 'odendi')
         .eq('urunler.kategori_id', kategoriId)
@@ -695,7 +700,7 @@ export const raporlarGelismisApi = {
         .sort((a,b) => b.toplam - a.toplam)
     }
 
-    const { data } = await supabase.from('siparisler')
+    const { data } = await tFrom('siparisler')
       .select('masa_no, genel_toplam, created_at')
       .eq('durum', 'odendi').not('masa_no', 'like', 'YS-%').not('masa_no', 'like', 'GT-%')
       .not('masa_no', 'like', 'TY-%').not('masa_no', 'like', 'MY-%')
@@ -863,13 +868,13 @@ export const raporlarGelismisApi = {
   // Garson bazlı satış raporu
   async garsonRaporu(baslangic, bitis, kategoriId = null) {
     // Sipariş bazlı ciro (kategori filtresi yoksa)
-    const { data: siparisler } = await supabase.from('siparisler')
+    const { data: siparisler } = await tFrom('siparisler')
       .select('garson_id, garson_ad, garson, genel_toplam, created_at, masa_no, tur')
       .eq('durum', 'odendi')
       .gte('created_at', baslangic).lt('created_at', bitis)
 
     // Kalem bazlı satış (ürün + kategori detayı)
-    let kq = supabase.from('siparis_kalemleri')
+    let kq = tFrom('siparis_kalemleri')
       .select('urun_ad, urun_fiyat, adet, urunler!inner(kategori_id, kategoriler(ad,emoji)), siparisler!inner(garson_id, garson_ad, garson, created_at, durum)')
       .eq('siparisler.durum', 'odendi')
       .gte('siparisler.created_at', baslangic)
@@ -949,7 +954,7 @@ export const raporlarGelismisApi = {
   },
 
   async platformKarsilastirma(baslangic, bitis) {
-    const { data } = await supabase.from('platform_siparisler')
+    const { data } = await tFrom('platform_siparisler')
       .select('platform, siparis_tutari, durum, created_at')
       .gte('created_at', baslangic).lt('created_at', bitis)
     const platformlar = {}

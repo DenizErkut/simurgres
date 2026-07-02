@@ -47,7 +47,7 @@ export default function ResimYukleyici({
         const { url, boyutKB } = await resimSikistirVeYukle(dosya, 'urunler', maxKB)
         toast.dismiss(toastId)
 
-        if (sadeceTek || galeri.length === 0) {
+        if (sadeceTek || !mevcutUrl) {
           // Ana resim
           if (mevcutUrl) await resimSil(mevcutUrl)
           
