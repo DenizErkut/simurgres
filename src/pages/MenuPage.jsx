@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { urunlerApi, kategorilerApi } from '../lib/supabase'
 import toast from 'react-hot-toast'
 import { Plus, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
-import ResimYukleyici from '../components/ResimYukleyici'
+import ResimYukleyici from './ResimYukleyici'
 import { supabase } from '../lib/supabase'
 
 function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {

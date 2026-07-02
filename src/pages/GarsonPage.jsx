@@ -5,34 +5,76 @@ import { useAuth } from '../contexts/AuthContext'
 import { useIzin } from '../contexts/IzinContext'
 import { usePinOnay } from '../contexts/PinOnayContext'
 import toast from 'react-hot-toast'
-import { ShoppingCart, Send, Trash2, ChefHat, ArrowRightLeft, X, ClipboardList } from 'lucide-react'
+import { ShoppingCart, Send, Trash2, ChefHat, ArrowRightLeft, X, ClipboardList, Edit2 } from 'lucide-react'
 
 // ─── MEVCUT SİPARİŞ GÖRÜNTÜLEME ──────────────────────────────────────────────
-function MevcutSiparisPanel({ siparis }) {
+function MevcutSiparisPanel({ siparis, onFiyatGuncelle }) {
+  const { izinVar } = useIzin()
+  const { pinOnayla } = usePinOnay()
+  const [duzenlenen, setDuzenlenen] = useState(null) // kalem id
+  const [yeniFiyat, setYeniFiyat] = useState('')
+
   if (!siparis) return null
   const kalemler = siparis.siparis_kalemleri || []
   const toplam = kalemler.reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
-  const gruplu = Object.values(kalemler.reduce((acc, k) => {
-    if (acc[k.urun_ad]) acc[k.urun_ad].adet += k.adet
-    else acc[k.urun_ad] = { ...k }
-    return acc
-  }, {}))
+
+  const fiyatDuzenleBaslat = (kalem) => {
+    setDuzenlenen(kalem.id)
+    setYeniFiyat(String(kalem.urun_fiyat))
+  }
+
+  const fiyatKaydet = async (kalem) => {
+    const fiyat = parseFloat(yeniFiyat)
+    if (isNaN(fiyat) || fiyat < 0) { toast.error('Geçerli bir fiyat girin'); return }
+    if (fiyat === kalem.urun_fiyat) { setDuzenlenen(null); return }
+
+    // Hassas işlem — yetkisi olmayan kullanıcıdan yönetici PIN'i ister
+    const onaylandi = await pinOnayla('fiyat_degistir', {
+      urun: kalem.urun_ad, eskiFiyat: kalem.urun_fiyat, yeniFiyat: fiyat
+    })
+    if (!onaylandi) return
+
+    await onFiyatGuncelle(kalem, fiyat)
+    setDuzenlenen(null)
+  }
 
   return (
     <div style={{ background: 'var(--amber-light)', borderRadius: 'var(--radius)', border: '0.5px solid #e8c47a', padding: '10px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 12, fontWeight: 600, color: 'var(--amber)' }}>
         <ClipboardList size={13} /> Masadaki Mevcut Sipariş
       </div>
-      <div style={{ maxHeight: 130, overflowY: 'auto' }}>
-        {gruplu.map(k => (
-          <div key={k.urun_ad} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}>
-            <span style={{ color: 'var(--text)' }}>{k.urun_ad} <span style={{ color: 'var(--text2)' }}>x{k.adet}</span></span>
-            <span style={{ fontWeight: 500 }}>₺{k.urun_fiyat * k.adet}</span>
+      <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+        {kalemler.map(k => (
+          <div key={k.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderBottom: '0.5px solid rgba(0,0,0,0.06)', gap: 6 }}>
+            <span style={{ color: 'var(--text)', flex: 1, minWidth: 0 }}>{k.urun_ad} <span style={{ color: 'var(--text2)' }}>x{k.adet}</span></span>
+
+            {duzenlenen === k.id ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+                <input
+                  type="number" value={yeniFiyat} autoFocus
+                  onChange={e => setYeniFiyat(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') fiyatKaydet(k); if (e.key === 'Escape') setDuzenlenen(null) }}
+                  style={{ width: 64, fontSize: 12, padding: '2px 6px', textAlign: 'right' }}
+                />
+                <button className="btn btn-ghost btn-sm" style={{ padding: '2px 4px' }} onClick={() => fiyatKaydet(k)}>✓</button>
+                <button className="btn btn-ghost btn-sm" style={{ padding: '2px 4px' }} onClick={() => setDuzenlenen(null)}>✕</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontWeight: 500 }}>₺{(k.urun_fiyat * k.adet).toFixed(2)}</span>
+                <button
+                  className="btn btn-ghost btn-sm" style={{ padding: '2px 4px', opacity: .6 }}
+                  title="Fiyatı değiştir (yetki gerektirir)"
+                  onClick={() => fiyatDuzenleBaslat(k)}>
+                  <Edit2 size={10} />
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 13, fontWeight: 700, color: 'var(--amber)' }}>
-        <span>Toplam</span><span>₺{toplam}</span>
+        <span>Toplam</span><span>₺{toplam.toFixed(2)}</span>
       </div>
     </div>
   )
@@ -109,6 +151,39 @@ function UrunTransferModal({ mevcutSiparis, onTransfer, onKapat }) {
 }
 
 // ─── SİPARİŞ İPTAL MODALİ ────────────────────────────────────────────────────
+function AcikFiyatModal({ urun, onOnayla, onKapat }) {
+  const [fiyat, setFiyat] = useState('')
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onKapat()}>
+      <div className="modal" style={{ maxWidth: 340 }}>
+        <div className="modal-title">{urun.emoji} {urun.ad}</div>
+        <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 14 }}>
+          Bu ürün için satış fiyatını girin
+        </div>
+        <div className="form-row">
+          <label>Fiyat (₺)</label>
+          <input
+            type="number"
+            value={fiyat}
+            onChange={e => setFiyat(e.target.value)}
+            placeholder="0.00"
+            autoFocus
+            style={{ fontSize: 18, fontWeight: 600, textAlign: 'center' }}
+            onKeyDown={e => { if (e.key === 'Enter' && fiyat) onOnayla(fiyat) }}
+          />
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onKapat}>İptal</button>
+          <button className="btn btn-primary" onClick={() => onOnayla(fiyat)} disabled={!fiyat}>
+            Sepete Ekle
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function IptalModal({ siparis, onIptal, onKapat }) {
   const [neden, setNeden] = useState('')
   return (
@@ -202,13 +277,59 @@ export default function GarsonPage() {
     }
   }
 
+  const [fiyatModal, setFiyatModal] = useState(null) // { urun, not? }
+
+  // Mevcut (gönderilmiş) sipariş kaleminin fiyatını güncelle — yetki/PIN korumalı
+  const kalemFiyatGuncelle = async (kalem, yeniFiyat) => {
+    try {
+      const { error } = await supabase.from('siparis_kalemleri')
+        .update({ urun_fiyat: yeniFiyat }).eq('id', kalem.id)
+      if (error) throw error
+
+      // Sipariş toplamını yeniden hesapla
+      const { data: tumKalemler } = await supabase.from('siparis_kalemleri')
+        .select('urun_fiyat, adet').eq('siparis_id', mevcutSiparis.id)
+      const yeniToplam = (tumKalemler || []).reduce((a, k) => a + k.urun_fiyat * k.adet, 0)
+      const yeniKdv = +(yeniToplam * 10 / 110).toFixed(2)
+      await supabase.from('siparisler')
+        .update({ toplam: yeniToplam, kdv_tutar: yeniKdv, genel_toplam: yeniToplam })
+        .eq('id', mevcutSiparis.id)
+
+      toast.success(`${kalem.urun_ad} fiyatı ₺${yeniFiyat} olarak güncellendi`)
+      // Güncel siparişi yeniden çek
+      const guncel = await siparislerApi.getByMasa(seciliMasa.id)
+      setMevcutSiparis(guncel)
+    } catch (e) {
+      toast.error('Fiyat güncellenemedi: ' + e.message)
+    }
+  }
+
   const urunEkle = (urun, not = null) => {
+    // Açık fiyatlı ürün (fiyat = -1): garson fiyatı kendisi girsin
+    if (urun.fiyat === -1) {
+      setFiyatModal({ urun, not })
+      return
+    }
     setSepet(prev => {
       const mevcut = prev.find(s => s.id === urun.id && !not)
       if (mevcut && !not) return prev.map(s => s.id === urun.id ? { ...s, adet: s.adet + 1 } : s)
       const yeniId = `${urun.id}_${Date.now()}`
       return [...prev, { _uid: not ? yeniId : urun.id, id: urun.id, ad: urun.ad, fiyat: urun.fiyat, adet: 1, emoji: urun.emoji || '🍽️', not: not || '' }]
     })
+  }
+
+  // Açık fiyatlı ürün için fiyat girildikten sonra sepete ekle
+  const acikFiyatOnayla = (girilenFiyat) => {
+    const fiyat = parseFloat(girilenFiyat)
+    if (isNaN(fiyat) || fiyat <= 0) { toast.error('Geçerli bir fiyat girin'); return }
+    const { urun, not } = fiyatModal
+    // -1 fiyatlı ürünler her zaman ayrı kalem olarak eklenir (farklı fiyatlar birleşmemeli)
+    const yeniId = `${urun.id}_${Date.now()}`
+    setSepet(prev => [...prev, {
+      _uid: yeniId, id: urun.id, ad: urun.ad, fiyat,
+      adet: 1, emoji: urun.emoji || '🍽️', not: not || '', acikFiyat: true
+    }])
+    setFiyatModal(null)
   }
 
   const urunEkleNot = (urun) => {
@@ -386,7 +507,7 @@ export default function GarsonPage() {
           ) : (
             <>
               {/* Mevcut sipariş göster */}
-              {masaDolu && <MevcutSiparisPanel siparis={mevcutSiparis} />}
+              {masaDolu && <MevcutSiparisPanel siparis={mevcutSiparis} onFiyatGuncelle={kalemFiyatGuncelle} />}
 
               {/* Aksiyon butonları — sadece dolu masa + izin varsa */}
               {masaDolu && aksiyonlar.length > 0 && (
@@ -430,12 +551,25 @@ export default function GarsonPage() {
                           style={{ padding: '10px 10px', borderRadius: 'var(--radius)', border: `1.5px solid ${adet > 0 ? 'var(--accent)' : 'var(--border)'}`, background: adet > 0 ? 'var(--accent-light)' : 'var(--surface2)', cursor: 'pointer', transition: 'all .15s', position: 'relative', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
                           onMouseEnter={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--accent)' }}
                           onMouseLeave={e => { if (!adet) e.currentTarget.style.borderColor = 'var(--border)' }}>
-                          {adet > 0 && (
+                          {adet > 0 && u.fiyat !== -1 && (
                             <span style={{ position: 'absolute', top: 6, right: 6, background: 'var(--accent)', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{adet}</span>
                           )}
+                          {/* Ana resim */}
+                          {u.resim_url && (
+                            <div style={{ marginBottom: 6, borderRadius: 6, overflow: 'hidden', height: 70 }}>
+                              <img src={u.resim_url} alt={u.ad}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                          )}
                           <div style={{ fontSize: 13, fontWeight: 500 }}>{u.emoji} {u.ad}</div>
-                          <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 3, fontWeight: 600 }}>₺{u.fiyat}</div>
-                          {adet > 0 && (
+                          {u.fiyat === -1 ? (
+                            <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                              ✏️ Fiyat Girilecek
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 3, fontWeight: 600 }}>₺{u.fiyat}</div>
+                          )}
+                          {adet > 0 && u.fiyat !== -1 && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }} onClick={e => e.stopPropagation()}>
                               <button className="adet-btn" style={{ width: 34, height: 34, fontSize: 18 }}
                                 onClick={e => { e.stopPropagation(); adetDegistir(u.id, -1) }}>−</button>
@@ -469,15 +603,15 @@ export default function GarsonPage() {
             </div>
             <div style={{ maxHeight: 150, overflowY: 'auto' }}>
               {sepet.map(s => (
-                <div key={s.id} className="sepet-item">
+                <div key={s._uid || s.id} className="sepet-item">
                   <div className="sepet-ad">
-                    <div>{s.emoji} {s.ad}</div>
+                    <div>{s.emoji} {s.ad} {s.acikFiyat && <span style={{ fontSize: 10, color: 'var(--amber)' }}>✏️ açık fiyat</span>}</div>
                     {s.not && <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 2 }}>📝 {s.not}</div>}
                   </div>
                   <div className="adet-ctrl">
-                    <button className="adet-btn" onClick={() => adetDegistir(s.id, -1)}>−</button>
+                    <button className="adet-btn" onClick={() => adetDegistir(s._uid || s.id, -1)}>−</button>
                     <span style={{ fontSize: 15, fontWeight: 600, minWidth: 28, textAlign: 'center' }}>{s.adet}</span>
-                    <button className="adet-btn" onClick={() => adetDegistir(s.id, 1)}>+</button>
+                    <button className="adet-btn" onClick={() => adetDegistir(s._uid || s.id, 1)} disabled={s.acikFiyat}>+</button>
                   </div>
                   <span className="sepet-fiyat">₺{s.fiyat * s.adet}</span>
                 </div>
@@ -506,6 +640,9 @@ export default function GarsonPage() {
       )}
       {modal === 'transfer' && mevcutSiparis && (
         <UrunTransferModal mevcutSiparis={mevcutSiparis} onTransfer={urunTransferEt} onKapat={() => setModal(null)} />
+      )}
+      {fiyatModal && (
+        <AcikFiyatModal urun={fiyatModal.urun} onOnayla={acikFiyatOnayla} onKapat={() => setFiyatModal(null)} />
       )}
     </div>
   )

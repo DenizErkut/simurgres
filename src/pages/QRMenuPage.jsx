@@ -236,7 +236,6 @@ export default function QRMenuPage() {
               </div>
             </div>
           </div>
-          </div>
         ))}
       </div>
 
