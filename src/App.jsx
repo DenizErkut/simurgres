@@ -122,7 +122,7 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
 
       {/* Logo */}
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-        <img src="/icon-192.png" alt="Quapos" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} />
+        <img src="/icon-192.png" alt="Q" style={{ width: 30, height: 30, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} />
         <span style={{ fontSize: 15, fontWeight: 700, color: '#0A2342' }}>Quapos</span>
       </div>
 
