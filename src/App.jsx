@@ -121,9 +121,9 @@ function Sidebar({ aktif, setAktif, kullanici, menuAcik }) {
     }} className={`sidebar ${menuAcik ? 'sidebar-acik' : ''}`}>
 
       {/* Logo */}
-      <div style={{ padding: '16px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#D85A30', flexShrink: 0 }} />
-        <span style={{ fontSize: 15, fontWeight: 600 }}>SimurgRes</span>
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+        <img src="/icon-192.png" alt="Quapos" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} />
+        <span style={{ fontSize: 15, fontWeight: 700, color: '#0A2342' }}>Quapos</span>
       </div>
 
       {/* Nav */}
@@ -247,7 +247,7 @@ function AppInner() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center' }}>
         <div className="spinner" style={{ margin: '0 auto 12px' }} />
-        <div style={{ fontSize: 13, color: 'var(--text2)' }}>SimurgRes yükleniyor...</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)' }}>Quapos yükleniyor...</div>
       </div>
     </div>
   )
@@ -277,7 +277,7 @@ function AppInner() {
           <button onClick={() => setMenuAcik(a => !a)} className="hamburger-btn">
             <span /><span /><span />
           </button>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>SimurgRes</span>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>Quapos</span>
           <div style={{ width: 36 }} />
         </div>
 
