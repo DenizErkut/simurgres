@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
-import { Plus, Edit2, Trash2, ToggleRight, ToggleLeft, Users, Layout, Tag, ChevronRight } from 'lucide-react'
+import { Plus, Edit2, Trash2, ToggleRight, ToggleLeft, Users, Layout, Tag, ChevronRight, ScanBarcode } from 'lucide-react'
 
 // ─── SALON YÖNETİMİ ──────────────────────────────────────────────────────────
 function SalonYonetimi() {
@@ -416,6 +416,7 @@ const SEKMELER = [
   { id: 'masalar', label: 'Salonlar & Masalar', icon: Layout },
   { id: 'kategoriler', label: 'Kategoriler', icon: Tag },
   { id: 'kullanicilar', label: 'Kullanıcılar', icon: Users },
+  { id: 'terazi', label: 'Terazi Barkod', icon: ScanBarcode },
 ]
 
 export default function YonetimPage() {
@@ -467,6 +468,12 @@ export default function YonetimPage() {
             <KullanicilarIcerik />
           </>
         )}
+        {aktif === 'terazi' && (
+          <>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>Terazi (Tartılı) Barkod Ayarları</div>
+            <TeraziBarkodAyar />
+          </>
+        )}
       </div>
     </div>
   )
@@ -476,4 +483,89 @@ export default function YonetimPage() {
 import KullanicilarPage from './KullanicilarPage'
 function KullanicilarIcerik() {
   return <KullanicilarPage embedded />
+}
+
+// ─── TERAZİ BARKOD AYARLARI ──────────────────────────────────────────────────
+function TeraziBarkodAyar() {
+  const [flags, setFlags] = useState(['27', '28', '29'])
+  const [aktif, setAktif] = useState(true)
+  const [yeniFlag, setYeniFlag] = useState('')
+  const [yukleniyor, setYukleniyor] = useState(true)
+  const [kaydediliyor, setKaydediliyor] = useState(false)
+
+  useEffect(() => {
+    supabase.from('entegrasyon_ayarlari')
+      .select('aktif, ayarlar').eq('platform', 'terazi_barkod').single()
+      .then(({ data }) => {
+        if (data) {
+          setAktif(data.aktif)
+          setFlags(data.ayarlar?.flags || ['27', '28', '29'])
+        }
+        setYukleniyor(false)
+      })
+  }, [])
+
+  const kaydet = async () => {
+    setKaydediliyor(true)
+    const { error } = await supabase.from('entegrasyon_ayarlari')
+      .upsert({ platform: 'terazi_barkod', aktif, ayarlar: { flags, mod: 'gramaj' } }, { onConflict: 'platform' })
+    setKaydediliyor(false)
+    if (error) toast.error('Kaydedilemedi: ' + error.message)
+    else toast.success('Terazi barkod ayarı kaydedildi')
+  }
+
+  const flagEkle = () => {
+    const f = yeniFlag.trim()
+    if (!/^\d{2}$/.test(f)) { toast.error('Flag 2 haneli olmalı (örn. 27)'); return }
+    if (flags.includes(f)) { toast.error('Bu flag zaten var'); return }
+    setFlags(p => [...p, f]); setYeniFlag('')
+  }
+  const flagSil = (f) => setFlags(p => p.filter(x => x !== f))
+
+  if (yukleniyor) return <div style={{ color: 'var(--text2)' }}>Yükleniyor…</div>
+
+  return (
+    <div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 14 }}>
+        <input type="checkbox" checked={aktif} onChange={e => setAktif(e.target.checked)} />
+        <span style={{ fontWeight: 500 }}>Tartılı barkod okuma aktif</span>
+      </label>
+
+      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 8 }}>
+        Tartılı barkod ön ekleri (flag). Türkiye'de genelde 27, 28, 29 kullanılır.
+        Bir barkod bu ön eklerle başlıyorsa sistem onu <b>[flag][5 hane ürün kodu][5 hane gram][kontrol]</b> olarak çözer.
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        {flags.map(f => (
+          <span key={f} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+            background: 'var(--surface2)', borderRadius: 20, fontSize: 14, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            {f}
+            <button onClick={() => flagSil(f)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', display: 'flex', padding: 0 }}>
+              <Trash2 size={12} />
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 16, maxWidth: 320 }}>
+        <div style={{ flex: 1 }}>
+          <label>Yeni Flag (2 hane)</label>
+          <input value={yeniFlag} maxLength={2}
+            onChange={e => setYeniFlag(e.target.value.replace(/\D/g, '').slice(0, 2))}
+            onKeyDown={e => e.key === 'Enter' && flagEkle()} placeholder="örn. 26" />
+        </div>
+        <button className="btn btn-ghost" onClick={flagEkle}><Plus size={14} /> Ekle</button>
+      </div>
+
+      <button className="btn btn-primary" onClick={kaydet} disabled={kaydediliyor}>
+        {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet'}
+      </button>
+
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 14, lineHeight: 1.5 }}>
+        Not: Değer alanı <b>gramaj</b> (gram) olarak çözülür — standart. Her tartılı ürüne, ürün
+        düzenleme ekranından 5 haneli <b>terazi kodu</b> atamayı unutma; barkoddaki ürün kodu bununla eşleşir.
+      </div>
+    </div>
+  )
 }

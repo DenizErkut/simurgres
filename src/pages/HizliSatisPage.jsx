@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { urunlerApi, kategorilerApi, siparislerApi } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
+import { teraziAyarGetir, barkodCoz } from '../lib/teraziBarkod'
 import { useIzin } from '../contexts/IzinContext'
 import toast from 'react-hot-toast'
 import {
@@ -29,6 +31,7 @@ export default function HizliSatisPage() {
   const [isleniyor, setIsleniyor]     = useState(false)
   const [odenenYontem, setOdenenYontem] = useState(null) // hangi butona basıldı
   const [miktarModal, setMiktarModal] = useState(null) // { urun, mod: 'adet'|'kg' }
+  const [teraziAyar, setTeraziAyar]   = useState({ aktif: false, flags: ['27','28','29'], mod: 'gramaj' })
   const aramaRef = useRef(null)
 
   const izinliOdemeler = useMemo(
@@ -40,11 +43,16 @@ export default function HizliSatisPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [u, k] = await Promise.all([urunlerApi.getAll(), kategorilerApi.getAll()])
+        const [u, k, tAyar] = await Promise.all([
+          urunlerApi.getAll(),
+          kategorilerApi.getAll(),
+          teraziAyarGetir(supabase),
+        ])
         // Sadece hızlı satış işaretli ürünler (ticari mal / stok kalemi)
         setUrunler(u.filter(x => x.hizli_satis))
         // Sadece hızlı satış / ikisi tipli kategoriler
         setKategoriler(k.filter(x => x.tip === 'hizli_satis' || x.tip === 'ikisi'))
+        setTeraziAyar(tAyar)
       } catch (e) {
         toast.error('Ürünler yüklenemedi: ' + e.message)
       } finally {
@@ -144,10 +152,43 @@ export default function HizliSatisPage() {
   // ─── Arama/barkod Enter ───────────────────────────────────────
   const aramaEnter = (e) => {
     if (e.key !== 'Enter') return
+    const giris = arama.trim()
+    if (!giris) return
+
+    // 1) Tartılı barkod mu? (flag + ürün kodu + ağırlık)
+    const coz = barkodCoz(giris, teraziAyar)
+    if (coz.tip === 'tarti') {
+      // terazi_kodu ile ürünü bul (tüm ürünlerde ara, sadece filtrelide değil)
+      const urun = urunler.find(u => u.terazi_kodu && String(u.terazi_kodu) === coz.teraziKodu)
+      if (!urun) {
+        toast.error(`Terazi kodu ${coz.teraziKodu} olan ürün bulunamadı`)
+        setArama('')
+        return
+      }
+      if (coz.agirlikKg != null) {
+        // Gramaj bazlı: ağırlığı doğrudan sepete ekle
+        agirlikEkle(urun, coz.agirlikKg)
+        toast.success(`${urun.ad} — ${coz.agirlikKg.toFixed(3)} kg eklendi`)
+      } else if (coz.tutar != null) {
+        // Tutar bazlı: sabit tutarı 1 adet olarak ekle (özel durum)
+        setSepet(prev => [...prev, {
+          key: `${urun.id}_${Date.now()}`, urun_id: urun.id, urun_ad: urun.ad,
+          urun_fiyat: coz.tutar, adet: 1, birim: 'adet',
+        }])
+        toast.success(`${urun.ad} — ₺${coz.tutar.toFixed(2)} eklendi`)
+      }
+      setArama('')
+      return
+    }
+
+    // 2) Normal barkod / isim araması
     let hedef = null
     if (filtreli.length === 1) hedef = filtreli[0]
-    else if (filtreli.length > 1 && arama.trim()) {
-      hedef = filtreli.find(u => u.ad.toLowerCase() === arama.toLowerCase().trim())
+    else if (filtreli.length > 1) {
+      hedef = filtreli.find(u => u.ad.toLowerCase() === giris.toLowerCase())
+        || urunler.find(u => u.barkod && String(u.barkod) === giris)
+    } else {
+      hedef = urunler.find(u => u.barkod && String(u.barkod) === giris)
     }
     if (hedef) { urunTikla(hedef); setArama('') }
   }

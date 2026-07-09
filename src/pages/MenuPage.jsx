@@ -51,6 +51,7 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
       // ── Hızlı satış / stok kalemi alanları ──
       hizli_satis:   !!form.hizli_satis,
       barkod:        form.barkod || null,
+      terazi_kodu:   form.terazi_kodu || null,
       birim:         form.birim || 'adet',
       kdv_perakende: form.kdv_perakende ? parseFloat(form.kdv_perakende) : null,
       kdv_toptan:    form.kdv_toptan    ? parseFloat(form.kdv_toptan)    : null,
@@ -126,6 +127,17 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
                 </select>
               </div>
             </div>
+            {form.birim === 'kg' && (
+              <div className="form-row">
+                <label>Terazi Kodu (5 haneli)</label>
+                <input value={form.terazi_kodu || ''} maxLength={5}
+                  onChange={e => setForm(f => ({ ...f, terazi_kodu: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
+                  placeholder="örn. 00010" />
+                <span style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3, display: 'block' }}>
+                  Tartılı barkodun ortasındaki ürün kodu. Terazide bu ürüne atadığın kod ile aynı olmalı.
+                </span>
+              </div>
+            )}
             <div className="form-grid">
               <div className="form-row">
                 <label>KDV Perakende (%)</label>
