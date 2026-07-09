@@ -265,7 +265,7 @@ function MasaYonetimi() {
 // ─── KATEGORİ YÖNETİMİ ───────────────────────────────────────────────────────
 function KategoriYonetimi() {
   const [kategoriler, setKategoriler] = useState([])
-  const [yeni, setYeni] = useState({ ad: '', emoji: '🍽️' })
+  const [yeni, setYeni] = useState({ ad: '', emoji: '🍽️', tip: 'restoran' })
   const [duzenle, setDuzenle] = useState(null)
   const [yazicilar, setYazicilar] = useState([])
   const [katYazici, setKatYazici] = useState({}) // kategori_id -> yazici_id
@@ -316,9 +316,9 @@ function KategoriYonetimi() {
 
   const ekle = async () => {
     if (!yeni.ad.trim()) return
-    await supabase.from('kategoriler').insert({ ad: yeni.ad, emoji: yeni.emoji, sira: kategoriler.length + 1 })
+    await supabase.from('kategoriler').insert({ ad: yeni.ad, emoji: yeni.emoji, tip: yeni.tip || 'restoran', sira: kategoriler.length + 1 })
     toast.success('Kategori eklendi')
-    setYeni({ ad: '', emoji: '🍽️' })
+    setYeni({ ad: '', emoji: '🍽️', tip: 'restoran' })
     yukle()
   }
 
@@ -351,6 +351,14 @@ function KategoriYonetimi() {
             onChange={e => setYeni(f => ({ ...f, ad: e.target.value }))}
             onKeyDown={e => e.key === 'Enter' && ekle()} />
         </div>
+        <div style={{ width: 150 }}>
+          <label>Nerede görünsün</label>
+          <select value={yeni.tip} onChange={e => setYeni(f => ({ ...f, tip: e.target.value }))}>
+            <option value="restoran">🍽️ Restoran</option>
+            <option value="hizli_satis">🛒 Hızlı Satış</option>
+            <option value="ikisi">🔁 İkisi</option>
+          </select>
+        </div>
         <button className="btn btn-primary" onClick={ekle}><Plus size={14} /> Ekle</button>
       </div>
 
@@ -366,6 +374,16 @@ function KategoriYonetimi() {
               <span style={{ flex: 1, fontWeight: 500 }}>{k.ad}</span>
             )}
             <span style={{ fontSize: 11, color: 'var(--text3)' }}>Sıra: {i + 1}</span>
+            <select
+              value={k.tip || 'restoran'}
+              onChange={e => guncelle(k.id, { tip: e.target.value })}
+              style={{ fontSize: 11, padding: '3px 6px', width: 130,
+                border: '0.5px solid var(--border-md)', borderRadius: 'var(--radius)' }}
+              title="Bu kategori nerede görünsün">
+              <option value="restoran">🍽️ Restoran</option>
+              <option value="hizli_satis">🛒 Hızlı Satış</option>
+              <option value="ikisi">🔁 İkisi</option>
+            </select>
             {yazicilar.length > 0 && (
               <select
                 value={katYazici[k.id] || ''}

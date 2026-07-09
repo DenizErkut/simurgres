@@ -84,8 +84,15 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
         <div className="form-row">
           <label>Kategori</label>
           <select value={form.kategori_id} onChange={e => setForm(f => ({ ...f, kategori_id: e.target.value }))}>
-            {kategoriler.map(k => <option key={k.id} value={k.id}>{k.emoji} {k.ad}</option>)}
+            {kategoriler
+              .filter(k => form.hizli_satis
+                ? (k.tip === 'hizli_satis' || k.tip === 'ikisi')
+                : (k.tip === 'restoran' || k.tip === 'ikisi' || !k.tip))
+              .map(k => <option key={k.id} value={k.id}>{k.emoji} {k.ad}</option>)}
           </select>
+          <span style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3, display: 'block' }}>
+            {form.hizli_satis ? 'Hızlı satış kategorileri gösteriliyor' : 'Restoran kategorileri gösteriliyor'}
+          </span>
         </div>
         <div className="form-row">
           <label>Açıklama</label>

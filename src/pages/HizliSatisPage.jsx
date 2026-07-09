@@ -43,7 +43,8 @@ export default function HizliSatisPage() {
         const [u, k] = await Promise.all([urunlerApi.getAll(), kategorilerApi.getAll()])
         // Sadece hızlı satış işaretli ürünler (ticari mal / stok kalemi)
         setUrunler(u.filter(x => x.hizli_satis))
-        setKategoriler(k)
+        // Sadece hızlı satış / ikisi tipli kategoriler
+        setKategoriler(k.filter(x => x.tip === 'hizli_satis' || x.tip === 'ikisi'))
       } catch (e) {
         toast.error('Ürünler yüklenemedi: ' + e.message)
       } finally {
