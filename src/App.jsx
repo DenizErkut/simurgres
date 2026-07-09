@@ -28,6 +28,7 @@ import QRYonetimPage from './pages/QRYonetimPage'
 import QRMenuPage from './pages/QRMenuPage'
 import ZRaporuPage from './pages/ZRaporuPage'
 import RecetePage from './pages/RecetePage'
+import HizliSatisPage from './pages/HizliSatisPage'
 import './index.css'
 
 const ROL_RENK   = { garson: '#1D9E75', kasiyer: '#BA7517', yonetici: '#D85A30' }
@@ -42,6 +43,7 @@ const NAV = [
       { id: 'garson',  label: 'Garson',  icon: 'ti-tools-kitchen-2', component: GarsonPage,  roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#D85A30', bg: '#FAECE7' },
       { id: 'kds',     label: 'Mutfak',  icon: 'ti-chef-hat',        component: KDSPage,     roller: [ROL.GARSON, ROL.KASIYER, ROL.YONETICI], renk: '#1D9E75', bg: '#E1F5EE' },
       { id: 'kasiyer', label: 'Kasiyer', icon: 'ti-credit-card',     component: KasiyerPage, roller: [ROL.KASIYER, ROL.YONETICI],              renk: '#BA7517', bg: '#FAEEDA' },
+      { id: 'hizlisatis', label: 'Hızlı Satış', icon: 'ti-shopping-cart', component: HizliSatisPage, roller: [ROL.KASIYER, ROL.YONETICI],       renk: '#06B6D4', bg: '#E0F7FB' },
     ]
   },
   {
