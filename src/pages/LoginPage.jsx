@@ -31,9 +31,16 @@ export default function LoginPage() {
 
   const girisYapPIN = async (girilenPin) => {
     setYukleniyor(true)
-    const basarili = await girisYap(secili.id, girilenPin)
-    if (!basarili) { setHata('Hatalı PIN'); setPin('') }
-    setYukleniyor(false)
+    try {
+      const basarili = await girisYap(secili.id, girilenPin)
+      if (!basarili) { setHata('Hatalı PIN'); setPin('') }
+    } catch (e) {
+      // girisYap hata fırlatırsa da ekran kilitli kalmasın
+      setHata('Giriş hatası: ' + (e?.message || 'Bilinmeyen hata'))
+      setPin('')
+    } finally {
+      setYukleniyor(false)  // her koşulda çalışır — tuşlar bir daha takılmaz
+    }
   }
 
   const pinSil = () => { setPin(p => p.slice(0, -1)); setHata('') }
@@ -65,7 +72,7 @@ export default function LoginPage() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {kullanicilar.map(k => (
-                <button key={k.id} onClick={() => setSecili(k)}
+                <button key={k.id} onClick={() => { setSecili(k); setPin(''); setHata(''); setYukleniyor(false) }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 14,
                     padding: '14px 16px', background: 'var(--surface)',
