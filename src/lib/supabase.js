@@ -372,7 +372,41 @@ export const stokApi = {
         .select('hammadde_id, miktar, fire_orani')
         .eq('urun_id', kalem.urun_id)
 
-      if (!receteler || receteler.length === 0) continue
+      // ── REÇETESİZ HIZLI SATIŞ ÜRÜNÜ: kendi stok_adet'inden düş ──
+      // (ticari mal / hazır mamul — hammadde reçetesi yok, doğrudan stoklu)
+      if (!receteler || receteler.length === 0) {
+        const { data: urun } = await supabase
+          .from('urunler')
+          .select('stok_takip, stok_adet, ad')
+          .eq('id', kalem.urun_id)
+          .single()
+
+        if (urun && urun.stok_takip) {
+          const yeniStok = Math.max(0, (Number(urun.stok_adet) || 0) - Number(kalem.adet))
+          await tFrom('urunler')
+            .update({ stok_adet: yeniStok })
+            .eq('id', kalem.urun_id)
+
+          // Hareket logu (hammadde_id null — ürün stoğu hareketi)
+          // Log tablosu urun_id kolonuna sahip olmayabilir; hata satışı bozmasın.
+          try {
+            await tFrom('stok_hareketleri').insert({
+              hammadde_id: null,
+              urun_id: kalem.urun_id,
+              hareket_tipi: 'cikis',
+              miktar: Number(kalem.adet),
+              onceki_stok: Number(urun.stok_adet) || 0,
+              sonraki_stok: yeniStok,
+              kaynak: 'hizli_satis',
+              kaynak_id: siparisId,
+              notlar: `Hızlı satış — ${urun.ad}`
+            })
+          } catch (logHata) {
+            console.warn('Ürün stok log yazılamadı (satış etkilenmedi):', logHata?.message)
+          }
+        }
+        continue
+      }
 
       for (const r of receteler) {
         // Fire dahil net tüketim = miktar × (1 + fire/100) × adet

@@ -40,7 +40,8 @@ export default function HizliSatisPage() {
     (async () => {
       try {
         const [u, k] = await Promise.all([urunlerApi.getAll(), kategorilerApi.getAll()])
-        setUrunler(u)
+        // Sadece hızlı satış işaretli ürünler (ticari mal / stok kalemi)
+        setUrunler(u.filter(x => x.hizli_satis))
         setKategoriler(k)
       } catch (e) {
         toast.error('Ürünler yüklenemedi: ' + e.message)
@@ -215,7 +216,11 @@ export default function HizliSatisPage() {
         {/* Ürün grid */}
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {filtreli.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 40, fontSize: 14 }}>Ürün bulunamadı</div>
+            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 40, fontSize: 14 }}>
+              {urunler.length === 0
+                ? 'Henüz hızlı satış ürünü yok. Ürünler ekranından bir ürünü "Hızlı Satış Ürünü" olarak işaretleyin.'
+                : 'Ürün bulunamadı'}
+            </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
               {filtreli.map(u => {

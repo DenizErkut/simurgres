@@ -48,6 +48,14 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
       vegan:         !!form.vegan,
       glutensiz:     !!form.glutensiz,
       laktozsuz:     !!form.laktozsuz,
+      // ── Hızlı satış / stok kalemi alanları ──
+      hizli_satis:   !!form.hizli_satis,
+      barkod:        form.barkod || null,
+      birim:         form.birim || 'adet',
+      kdv_perakende: form.kdv_perakende ? parseFloat(form.kdv_perakende) : null,
+      kdv_toptan:    form.kdv_toptan    ? parseFloat(form.kdv_toptan)    : null,
+      stok_takip:    !!form.stok_takip,
+      stok_adet:     form.stok_adet !== '' && form.stok_adet != null ? parseFloat(form.stok_adet) : 0,
     }
     await onKaydet(temizForm)
   }
@@ -83,6 +91,61 @@ function UrunModal({ urun, kategoriler, yazicilar, onKaydet, onKapat }) {
           <label>Açıklama</label>
           <textarea rows={2} value={form.aciklama || ''} onChange={e => setForm(f => ({ ...f, aciklama: e.target.value }))} placeholder="Kısa açıklama..." />
         </div>
+
+        {/* ── HIZLI SATIŞ / STOK KALEMİ ── */}
+        <div style={{ borderTop: '0.5px solid var(--border)', margin: '14px 0 10px', paddingTop: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>
+            <input type="checkbox" checked={!!form.hizli_satis}
+              onChange={e => setForm(f => ({ ...f, hizli_satis: e.target.checked }))} />
+            🛒 Hızlı Satış Ürünü (tezgahta doğrudan satılır — stok kalemi)
+          </label>
+          <span style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3, display: 'block', marginLeft: 24 }}>
+            İşaretlenirse Hızlı Satış ekranında görünür. Su, kola, paket kahve gibi hazır mamuller için.
+          </span>
+        </div>
+
+        {form.hizli_satis && (
+          <>
+            <div className="form-grid">
+              <div className="form-row">
+                <label>Barkod</label>
+                <input value={form.barkod || ''} onChange={e => setForm(f => ({ ...f, barkod: e.target.value }))} placeholder="Okut veya yaz" />
+              </div>
+              <div className="form-row">
+                <label>Birim</label>
+                <select value={form.birim || 'adet'} onChange={e => setForm(f => ({ ...f, birim: e.target.value }))}>
+                  <option value="adet">Adet</option>
+                  <option value="kg">Kilogram (kg) — tartılı</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-grid">
+              <div className="form-row">
+                <label>KDV Perakende (%)</label>
+                <input type="number" value={form.kdv_perakende ?? ''} onChange={e => setForm(f => ({ ...f, kdv_perakende: e.target.value }))} placeholder="örn. 10" />
+              </div>
+              <div className="form-row">
+                <label>KDV Toptan (%)</label>
+                <input type="number" value={form.kdv_toptan ?? ''} onChange={e => setForm(f => ({ ...f, kdv_toptan: e.target.value }))} placeholder="örn. 1" />
+              </div>
+            </div>
+            <div className="form-row">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!form.stok_takip}
+                  onChange={e => setForm(f => ({ ...f, stok_takip: e.target.checked }))} />
+                Stok takibi yap (satılınca düşsün, biterse uyarsın)
+              </label>
+            </div>
+            {form.stok_takip && (
+              <div className="form-row">
+                <label>Mevcut Stok ({form.birim === 'kg' ? 'kg' : 'adet'})</label>
+                <input type="number" step={form.birim === 'kg' ? '0.001' : '1'}
+                  value={form.stok_adet ?? ''} onChange={e => setForm(f => ({ ...f, stok_adet: e.target.value }))} placeholder="0" />
+              </div>
+            )}
+          </>
+        )}
+
         {yazicilar.length > 0 && (
           <div className="form-row">
             <label>Yazıcı Yönlendirme</label>
