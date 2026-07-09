@@ -15,7 +15,7 @@ const ODEME_YONTEMLERI = [
 ]
 
 export default function HizliSatisPage() {
-  const { izinVarMi } = useIzin?.() || { izinVarMi: () => true }
+  const { izinVar } = useIzin()
 
   const [urunler, setUrunler]         = useState([])
   const [kategoriler, setKategoriler] = useState([])
@@ -29,8 +29,8 @@ export default function HizliSatisPage() {
 
   // İzinli ödeme yöntemleri
   const izinliOdemeler = useMemo(
-    () => ODEME_YONTEMLERI.filter(o => !o.izin || izinVarMi(o.izin)),
-    [izinVarMi]
+    () => ODEME_YONTEMLERI.filter(o => !o.izin || izinVar(o.izin)),
+    [izinVar]
   )
 
   // ─── Veri yükle ───────────────────────────────────────────────
