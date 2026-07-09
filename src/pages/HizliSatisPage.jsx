@@ -27,6 +27,7 @@ export default function HizliSatisPage() {
   const [yukleniyor, setYukleniyor]   = useState(true)
   const [odemeModal, setOdemeModal]   = useState(false)
   const [isleniyor, setIsleniyor]     = useState(false)
+  const [odenenYontem, setOdenenYontem] = useState(null) // hangi butona basıldı
   const [miktarModal, setMiktarModal] = useState(null) // { urun, mod: 'adet'|'kg' }
   const aramaRef = useRef(null)
 
@@ -153,7 +154,9 @@ export default function HizliSatisPage() {
   // ─── Ödeme ────────────────────────────────────────────────────
   const odemeYap = async (yontem) => {
     if (sepet.length === 0) return
+    if (isleniyor) return  // çift tık koruması — ilk istek sürerken ikinciyi engelle
     setIsleniyor(true)
+    setOdenenYontem(yontem)
     try {
       const siparis = await siparislerApi.create(
         { masa_id: null, masa_no: 'HIZLI', tur: 'gel_al', garson: 'Hızlı Satış' },
@@ -173,6 +176,7 @@ export default function HizliSatisPage() {
       toast.error('Satış hatası: ' + e.message)
     } finally {
       setIsleniyor(false)
+      setOdenenYontem(null)
     }
   }
 
@@ -358,11 +362,20 @@ export default function HizliSatisPage() {
             <div style={{ display: 'grid', gap: 8, marginBottom: 8 }}>
               {izinliOdemeler.map(o => {
                 const Icon = o.icon
+                const buAktif = odenenYontem === o.label
                 return (
                   <button key={o.label} className="btn" disabled={isleniyor}
                     onClick={() => odemeYap(o.label)}
-                    style={{ padding: '15px', fontSize: 15, justifyContent: 'flex-start', gap: 12, border: '0.5px solid var(--border)', background: 'var(--surface)' }}>
-                    <Icon size={19} /> {o.label}
+                    style={{
+                      padding: '15px', fontSize: 15, justifyContent: 'flex-start', gap: 12,
+                      border: '0.5px solid var(--border)',
+                      background: buAktif ? 'var(--accent)' : 'var(--surface)',
+                      color: buAktif ? '#fff' : 'var(--text)',
+                      opacity: isleniyor && !buAktif ? 0.4 : 1,
+                      cursor: isleniyor ? 'default' : 'pointer',
+                      transition: 'background .1s, opacity .1s',
+                    }}>
+                    <Icon size={19} /> {buAktif ? 'İşleniyor…' : o.label}
                   </button>
                 )
               })}
